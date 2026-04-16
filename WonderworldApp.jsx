@@ -195,8 +195,7 @@ import {
   useReducer,
 } from "react";
 
-// const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
-const API_BASE_URL = "http://localhost:4000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 // ─── DESIGN TOKENS ────────────────────────────────────────────
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Quicksand:wght@500;600;700&display=swap');`;
 
