@@ -1279,7 +1279,7 @@ const INITIAL_STATE = {
   products: INITIAL_PRODUCTS,
   inventory: INITIAL_INVENTORY,
   orders: INITIAL_ORDERS,
-  locations: INITIAL_LOCATIONS,
+  locations: [],
   settings: INITIAL_SETTINGS,
   formFields: INITIAL_FORM_FIELDS,
   adminAccounts: [],
