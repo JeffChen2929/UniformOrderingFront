@@ -196,30 +196,6 @@ import {
 } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
-
-//const API_BASE_URL = "http://localhost:4000";
-
-// ─── API HELPER ───────────────────────────────────────────────
-// Attaches the JWT token from localStorage to every request.
-// Usage: api("/api/products")  OR  api("/api/orders", { method:"POST", body:{...} })
-async function api(path, { method = "GET", body, token } = {}) {
-   const isFormData = options.body instanceof FormData;
-  const storedToken = token || localStorage.getItem("ww_token");
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Request failed: ${res.status}`);
-  }
-  return res.json();
-}
-
 // ─── DESIGN TOKENS ────────────────────────────────────────────
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Quicksand:wght@500;600;700&display=swap');`;
 
@@ -889,13 +865,12 @@ function Modal({ children, onClose, title, width = 480 }) {
       style={{
         position: "fixed",
         inset: 0,
-        // background: "rgba(0,0,0,.45)",
+        background: "rgba(0,0,0,.45)",
         zIndex: 1000,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
-        marginTop: 250,
       }}
       onClick={onClose}
     >
@@ -1142,8 +1117,6 @@ function appReducer(state, action) {
         parentPage: "home",
       };
     case "LOGOUT":
-      localStorage.removeItem("ww_token");
-      localStorage.removeItem("ww_role");
       return {
         ...state,
         currentUser: null,
@@ -1244,25 +1217,13 @@ function appReducer(state, action) {
     case "SET_PRODUCT_DETAIL":
       return { ...state, productDetail: action.product };
     case "SET_INITIAL_DATA": {
+      console.log(action);
       try {
-        const { products, locations, settings, formFields } = action.payload;
-        return {
-          ...state,
-          ...(products ? { products } : {}),
-          ...(locations ? { locations } : {}),
-          ...(settings ? { settings } : {}),
-          ...(formFields ? { formFields } : {}),
-        };
+        return { ...state, locations: action.payload.locations };
       } catch (e) {
-        return state;
+        return { ...state, locations: [] };
       }
     }
-    case "SET_ORDERS":
-      return { ...state, orders: action.orders };
-    case "SET_INVENTORY":
-      return { ...state, inventory: action.inventory };
-    case "SET_ADMIN_ACCOUNTS":
-      return { ...state, adminAccounts: action.accounts };
 
     default:
       return state;
@@ -1279,10 +1240,9 @@ const INITIAL_STATE = {
   products: INITIAL_PRODUCTS,
   inventory: INITIAL_INVENTORY,
   orders: INITIAL_ORDERS,
-  locations: INITIAL_LOCATIONS,
+  locations: [],
   settings: INITIAL_SETTINGS,
   formFields: INITIAL_FORM_FIELDS,
-  adminAccounts: [],
   toast: null,
   productDetail: null,
 };
@@ -1304,7 +1264,7 @@ function ParentLogin() {
     password: "",
   });
 
-  async function handleLogin() {
+  function handleLogin() {
     if (!email || !pass) {
       dispatch({
         type: "SET_TOAST",
@@ -1312,20 +1272,10 @@ function ParentLogin() {
       });
       return;
     }
-    try {
-      const data = await api("/api/auth/parent/login", {
-        method: "POST",
-        body: { email, password: pass },
-      });
-      localStorage.setItem("ww_token", data.token);
-      localStorage.setItem("ww_role", "parent");
-      dispatch({ type: "LOGIN", user: data.parent, role: "parent" });
-      dispatch({ type: "SET_PARENT_PAGE", page: "home" });
-    } catch (err) {
-      dispatch({ type: "SET_TOAST", message: err.message || "Login failed" });
-    }
+    dispatch({ type: "LOGIN", user: PARENT_USER, role: "parent" });
+    dispatch({ type: "SET_PARENT_PAGE", page: "home" });
   }
-  async function handleRegister() {
+  function handleRegister() {
     if (!form.firstName || !form.email || !form.password) {
       dispatch({
         type: "SET_TOAST",
@@ -1333,21 +1283,12 @@ function ParentLogin() {
       });
       return;
     }
-    try {
-      const data = await api("/api/auth/parent/register", {
-        method: "POST",
-        body: form,
-      });
-      localStorage.setItem("ww_token", data.token);
-      localStorage.setItem("ww_role", "parent");
-      dispatch({ type: "LOGIN", user: data.parent, role: "parent" });
-      dispatch({ type: "SET_PARENT_PAGE", page: "home" });
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Registration failed",
-      });
-    }
+    dispatch({
+      type: "LOGIN",
+      user: { ...PARENT_USER, ...form, id: "par_new" },
+      role: "parent",
+    });
+    dispatch({ type: "SET_PARENT_PAGE", page: "home" });
   }
   return (
     <div
@@ -1457,33 +1398,13 @@ function ParentLogin() {
               }}
             >
               <button
-                onClick={async () => {
-                  try {
-                    const data = await api("/api/auth/admin/login", {
-                      method: "POST",
-                      body: {
-                        email: "wang@wonderworld.edu",
-                        password: "adminpass",
-                      },
-                    });
-                    localStorage.setItem("ww_token", data.token);
-                    localStorage.setItem("ww_role", "admin");
-                    dispatch({
-                      type: "LOGIN",
-                      user: data.admin,
-                      role: "admin",
-                    });
-                    dispatch({
-                      type: "SET_VIEW",
-                      view: "admin",
-                      adminPage: "dashboard",
-                    });
-                  } catch (err) {
-                    dispatch({
-                      type: "SET_TOAST",
-                      message: err.message || "Admin login failed",
-                    });
-                  }
+                onClick={() => {
+                  dispatch({ type: "LOGIN", user: ADMIN_USER, role: "admin" });
+                  dispatch({
+                    type: "SET_VIEW",
+                    view: "admin",
+                    adminPage: "dashboard",
+                  });
                 }}
                 style={{
                   background: "none",
@@ -1939,7 +1860,7 @@ function ParentCart() {
 
   const visibleFields = formFields.filter((f) => f.isVisible);
 
-  async function handleSubmit() {
+  function handleSubmit() {
     const required = visibleFields.filter((f) => f.isRequired);
     for (const f of required) {
       if (!form[f.fieldKey]) {
@@ -1951,30 +1872,31 @@ function ParentCart() {
       dispatch({ type: "SET_TOAST", message: "Your cart is empty" });
       return;
     }
-    try {
-      const newOrder = await api("/api/orders", {
-        method: "POST",
-        body: {
-          ...form,
-          items: cart.map((i) => ({
-            productId: i.productId,
-            productName: i.productName,
-            size: i.size,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-          })),
-        },
-      });
-      dispatch({ type: "ADD_ORDER", order: newOrder });
-      dispatch({ type: "CLEAR_CART" });
-      dispatch({ type: "SET_TOAST", message: "Order submitted successfully!" });
-      setSubmitted(true);
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to submit order",
-      });
-    }
+    const loc = locations.find((l) => l.id === form.locationId);
+    const newOrder = {
+      id: "o_" + Date.now(),
+      orderNumber: "WW-" + (2048 + state.orders.length),
+      parentId: state.currentUser.id,
+      ...form,
+      locationName: loc?.name || "",
+      subtotal,
+      discountRate,
+      discountAmount,
+      totalAmount: total,
+      status: "SUBMITTED",
+      createdAt: new Date().toISOString().split("T")[0],
+      items: cart.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        size: i.size,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+      })),
+    };
+    dispatch({ type: "ADD_ORDER", order: newOrder });
+    dispatch({ type: "CLEAR_CART" });
+    dispatch({ type: "SET_TOAST", message: "Order submitted successfully!" });
+    setSubmitted(true);
   }
 
   if (submitted)
@@ -2344,37 +2266,11 @@ function ParentCart() {
 }
 
 function ParentOrders() {
-  const { state, dispatch } = useApp();
-  const [myOrders, setMyOrders] = useState(
-    state.orders.filter((o) => o.parentId === state.currentUser?.id),
+  const { state } = useApp();
+  const myOrders = state.orders.filter(
+    (o) => o.parentId === state.currentUser?.id,
   );
   const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadOrders() {
-      try {
-        const orders = await api("/api/orders/mine");
-        setMyOrders(orders);
-        dispatch({ type: "SET_ORDERS", orders });
-      } catch (err) {
-        // fall back to local state
-        setMyOrders(
-          state.orders.filter((o) => o.parentId === state.currentUser?.id),
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadOrders();
-  }, []);
-
-  if (loading)
-    return (
-      <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
-        Loading orders…
-      </div>
-    );
 
   if (myOrders.length === 0)
     return (
@@ -2709,48 +2605,43 @@ function ParentShell() {
 // ══════════════════════════════════════════════════════════════
 
 function AdminDashboard() {
-  const { state, dispatch } = useApp();
-  const { orders, products } = state;
-  const [stats, setStats] = useState(null);
+  const { state } = useApp();
+  const { orders, products, inventory } = state;
+  const totalRev = orders
+    .filter((o) => o.status !== "CANCELLED")
+    .reduce((s, o) => s + o.totalAmount, 0);
+  const totalCost = orders
+    .filter((o) => o.status !== "CANCELLED")
+    .reduce(
+      (s, o) =>
+        s +
+        o.items.reduce((ss, it) => {
+          const p = products.find((p) => p.id === it.productId);
+          return ss + (p?.costPrice || 0) * it.quantity;
+        }, 0),
+      0,
+    );
+  const profit = totalRev - totalCost;
+  const pending = orders.filter((o) =>
+    ["SUBMITTED", "REVIEW"].includes(o.status),
+  ).length;
 
-  useEffect(() => {
-    api("/api/admin/stats")
-      .then(setStats)
-      .catch(() => {}); // fall back to local calculation below
-  }, []);
-
-  const totalRev =
-    stats?.revenue ??
-    orders
-      .filter((o) => o.status !== "CANCELLED")
-      .reduce((s, o) => s + o.totalAmount, 0);
-  const profit = stats?.profit ?? 0;
-  const pending =
-    stats?.pendingOrders ??
-    orders.filter((o) => ["SUBMITTED", "REVIEW"].includes(o.status)).length;
-
-  const productQtys = stats?.topProducts
-    ? stats.topProducts.map((p) => ({
-        id: p.productId,
-        name: p.productName,
-        totalQty: p._sum?.quantity || 0,
-      }))
-    : products
-        .map((p) => ({
-          ...p,
-          totalQty: orders
-            .filter((o) => o.status !== "CANCELLED")
-            .reduce(
-              (s, o) =>
-                s +
-                o.items
-                  .filter((i) => i.productId === p.id)
-                  .reduce((ss, i) => ss + i.quantity, 0),
-              0,
-            ),
-        }))
-        .sort((a, b) => b.totalQty - a.totalQty)
-        .slice(0, 6);
+  const productQtys = products
+    .map((p) => ({
+      ...p,
+      totalQty: orders
+        .filter((o) => o.status !== "CANCELLED")
+        .reduce(
+          (s, o) =>
+            s +
+            o.items
+              .filter((i) => i.productId === p.id)
+              .reduce((ss, i) => ss + i.quantity, 0),
+          0,
+        ),
+    }))
+    .sort((a, b) => b.totalQty - a.totalQty)
+    .slice(0, 6);
 
   const maxQty = Math.max(...productQtys.map((p) => p.totalQty), 1);
 
@@ -2936,7 +2827,6 @@ function AdminProducts() {
   });
   const sizes = ["T1", "T2", "T3", "T4", "T5"];
   const categories = ["Tops", "Bottoms", "Accessories", "Sets"];
-  const [file, setFile] = useState(null);
 
   function openNew() {
     setEditing(null);
@@ -2962,59 +2852,7 @@ function AdminProducts() {
     });
     setShowForm(true);
   }
-  // async function handleSave() {
-  //   if (!form.name || !form.sellingPrice || !form.costPrice) {
-  //     dispatch({
-  //       type: "SET_TOAST",
-  //       message: "Name, selling price and cost price are required",
-  //     });
-  //     return;
-  //   }
-  //   const body = {
-  //     ...form,
-  //     sellingPrice: parseFloat(form.sellingPrice),
-  //     costPrice: parseFloat(form.costPrice),
-  //     sizes: form.sizes,
-  //   };
-  //   try {
-  //     if (editing) {
-  //       const product = await api(`/api/admin/products/${editing.id}`, {
-  //         method: "PUT",
-  //         body,
-  //       });
-  //       dispatch({
-  //         type: "UPDATE_PRODUCT",
-  //         product: { ...editing, ...product, sizes: form.sizes },
-  //       });
-  //     } else {
-  //       const product = await api("/api/admin/products", {
-  //         method: "POST",
-  //         body,
-  //       });
-  //       dispatch({
-  //         type: "ADD_PRODUCT",
-  //         product: {
-  //           ...product,
-  //           sizes: form.sizes,
-  //           imageEmoji: form.imageEmoji,
-  //           imageBg: form.imageBg || "#e8f7f0",
-  //         },
-  //       });
-  //     }
-  //     dispatch({
-  //       type: "SET_TOAST",
-  //       message: editing ? "Product updated!" : "Product added!",
-  //     });
-  //     setShowForm(false);
-  //   } catch (err) {
-  //     dispatch({
-  //       type: "SET_TOAST",
-  //       message: err.message || "Failed to save product",
-  //     });
-  //   }
-  // }
-
-  async function handleSave() {
+  function handleSave() {
     if (!form.name || !form.sellingPrice || !form.costPrice) {
       dispatch({
         type: "SET_TOAST",
@@ -3022,71 +2860,20 @@ function AdminProducts() {
       });
       return;
     }
-
-    try {
-      const formData = new FormData();
-
-      // append all form fields
-      Object.keys(form).forEach((key) => {
-        if (key === "sizes") {
-          formData.append(key, JSON.stringify(form[key]));
-        } else {
-          formData.append(key, form[key]);
-        }
-      });
-
-      // ensure numeric fields are numbers
-      formData.set("sellingPrice", parseFloat(form.sellingPrice));
-      formData.set("costPrice", parseFloat(form.costPrice));
-
-      // append file (IMPORTANT)
-      if (file) {
-        formData.append("image", file);
-      }
-
-      let product;
-
-      if (editing) {
-        product = await api(`/api/admin/products/${editing.id}`, {
-          method: "PUT",
-          body: formData,
-        });
-
-        dispatch({
-          type: "UPDATE_PRODUCT",
-          product: { ...editing, ...product, sizes: form.sizes },
-        });
-      } else {
-        product = await api("/api/admin/products", {
-          method: "POST",
-          body: formData,
-        });
-
-        dispatch({
-          type: "ADD_PRODUCT",
-          product: {
-            ...product,
-            sizes: form.sizes,
-            imageEmoji: form.imageEmoji,
-            imageBg: form.imageBg || "#e8f7f0",
-          },
-        });
-      }
-
-      dispatch({
-        type: "SET_TOAST",
-        message: editing ? "Product updated!" : "Product added!",
-      });
-
-      setShowForm(false);
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to save product",
-      });
-    }
+    const product = {
+      ...form,
+      sellingPrice: parseFloat(form.sellingPrice),
+      costPrice: parseFloat(form.costPrice),
+      id: editing?.id || "p_" + Date.now(),
+    };
+    if (editing) dispatch({ type: "UPDATE_PRODUCT", product });
+    else dispatch({ type: "ADD_PRODUCT", product });
+    dispatch({
+      type: "SET_TOAST",
+      message: editing ? "Product updated!" : "Product added!",
+    });
+    setShowForm(false);
   }
-
   function toggleSize(s) {
     setForm((f) => ({
       ...f,
@@ -3244,23 +3031,12 @@ function AdminProducts() {
                 >
                   <Toggle
                     checked={p.isActive}
-                    onChange={async (v) => {
-                      try {
-                        await api(`/api/admin/products/${p.id}`, {
-                          method: "PUT",
-                          body: { isActive: v },
-                        });
-                        dispatch({
-                          type: "UPDATE_PRODUCT",
-                          product: { ...p, isActive: v },
-                        });
-                      } catch (err) {
-                        dispatch({
-                          type: "SET_TOAST",
-                          message: err.message || "Failed to update product",
-                        });
-                      }
-                    }}
+                    onChange={(v) =>
+                      dispatch({
+                        type: "UPDATE_PRODUCT",
+                        product: { ...p, isActive: v },
+                      })
+                    }
                   />
                 </td>
                 <td
@@ -3286,22 +3062,12 @@ function AdminProducts() {
                       Edit
                     </button>
                     <button
-                      onClick={async () => {
-                        try {
-                          await api(`/api/admin/products/${p.id}`, {
-                            method: "DELETE",
-                          });
-                          dispatch({ type: "DELETE_PRODUCT", id: p.id });
-                          dispatch({
-                            type: "SET_TOAST",
-                            message: "Product deleted",
-                          });
-                        } catch (err) {
-                          dispatch({
-                            type: "SET_TOAST",
-                            message: err.message || "Failed to delete product",
-                          });
-                        }
+                      onClick={() => {
+                        dispatch({ type: "DELETE_PRODUCT", id: p.id });
+                        dispatch({
+                          type: "SET_TOAST",
+                          message: "Product deleted",
+                        });
                       }}
                       style={{
                         padding: "4px 10px",
@@ -3379,11 +3145,6 @@ function AdminProducts() {
             type="textarea"
             style={{ marginBottom: 10 }}
           />
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
           <div style={{ marginBottom: 14 }}>
             <div
               style={{
@@ -3454,38 +3215,22 @@ function AdminProducts() {
 function AdminInventory() {
   const { state, dispatch } = useApp();
   const [filter, setFilter] = useState("");
-  const [apiRows, setApiRows] = useState(null);
 
-  useEffect(() => {
-    api("/api/admin/inventory")
-      .then((data) => setApiRows(data))
-      .catch(() => {});
-  }, []);
-
-  const rows = apiRows
-    ? apiRows.map((i) => ({
-        product: { id: i.productId, name: i.product?.name || "" },
-        invId: i.id,
-        size: i.size,
-        total: i.totalQty,
-        reserved: i.reservedQty,
-        available: i.availableQty,
-      }))
-    : state.products
-        .filter((p) => p.isActive)
-        .flatMap((p) =>
-          p.sizes.map((s) => {
-            const inv = state.inventory[p.id]?.[s] || { total: 0, reserved: 0 };
-            return {
-              product: p,
-              size: s,
-              total: inv.total,
-              reserved: inv.reserved,
-              available: inv.total - inv.reserved,
-            };
-          }),
-        );
-
+  const rows = [];
+  state.products
+    .filter((p) => p.isActive)
+    .forEach((p) => {
+      p.sizes.forEach((s) => {
+        const inv = state.inventory[p.id]?.[s] || { total: 0, reserved: 0 };
+        rows.push({
+          product: p,
+          size: s,
+          total: inv.total,
+          reserved: inv.reserved,
+          available: inv.total - inv.reserved,
+        });
+      });
+    });
   const filtered = filter
     ? rows.filter(
         (r) =>
@@ -3494,28 +3239,30 @@ function AdminInventory() {
       )
     : rows;
 
-  async function updateTotal(productId, size, val) {
+  function updateTotal(productId, size, val) {
     const inv = state.inventory[productId]?.[size] || { total: 0, reserved: 0 };
-    const newTotal = Math.max(parseInt(val) || 0, inv.reserved);
     dispatch({
       type: "UPDATE_INVENTORY",
       productId,
       size,
-      inv: { ...inv, total: newTotal },
+      inv: { ...inv, total: Math.max(parseInt(val) || 0, inv.reserved) },
     });
-    // Find the inventory row id for the API call
-    const row = rows.find((r) => r.product.id === productId && r.size === size);
-    if (row?.invId) {
-      api(`/api/admin/inventory/${row.invId}`, {
-        method: "PUT",
-        body: { totalQty: newTotal },
-      }).catch(() => {});
-    }
   }
 
   function exportCSV() {
-    // Use the server-side export endpoint which always has the latest data
-    window.open(`${API_BASE_URL}/api/admin/inventory/export`, "_blank");
+    const headers = "Product,Size,Total Stock,Reserved,Available\n";
+    const csv =
+      headers +
+      rows
+        .map(
+          (r) =>
+            `"${r.product.name}",${r.size},${r.total},${r.reserved},${r.available}`,
+        )
+        .join("\n");
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = "inventory.csv";
+    a.click();
   }
 
   return (
@@ -3721,29 +3468,8 @@ function AdminOrders() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterLoc, setFilterLoc] = useState("");
   const [detail, setDetail] = useState(null);
-  const [allOrders, setAllOrders] = useState(state.orders);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadOrders() {
-      try {
-        const params = new URLSearchParams();
-        if (search) params.set("search", search);
-        if (filterStatus) params.set("status", filterStatus);
-        if (filterLoc) params.set("locationId", filterLoc);
-        const data = await api(`/api/admin/orders?${params}`);
-        setAllOrders(data.orders || data);
-        dispatch({ type: "SET_ORDERS", orders: data.orders || data });
-      } catch {
-        setAllOrders(state.orders);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadOrders();
-  }, [search, filterStatus, filterLoc]);
-
-  const filtered = allOrders.filter((o) => {
+  const filtered = state.orders.filter((o) => {
     const q = search.toLowerCase();
     const matchSearch =
       !q ||
@@ -3757,31 +3483,30 @@ function AdminOrders() {
   });
 
   function exportCSV() {
-    window.open(`${API_BASE_URL}/api/admin/orders/export`, "_blank");
+    const headers =
+      "Order,Child,Class,Parent,Phone,Location,Subtotal,Discount,Total,Status,Date\n";
+    const locs = state.locations;
+    const csv =
+      headers +
+      state.orders
+        .map(
+          (o) =>
+            `${o.orderNumber},"${o.childName}","${o.childClass}","${o.parentName}",${o.parentPhone},"${locs.find((l) => l.id === o.locationId)?.name || ""}",${o.subtotal},${o.discountAmount},${o.totalAmount},${o.status},${o.createdAt}`,
+        )
+        .join("\n");
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = "orders.csv";
+    a.click();
   }
 
-  async function handleStatusChange(orderId, newStatus) {
-    try {
-      const updated = await api(`/api/admin/orders/${orderId}/status`, {
-        method: "PUT",
-        body: { status: newStatus },
-      });
-      dispatch({ type: "UPDATE_ORDER_STATUS", id: orderId, status: newStatus });
-      setAllOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
-      );
-      dispatch({
-        type: "SET_TOAST",
-        message: `Order status updated to ${STATUS_LABELS[newStatus]}`,
-      });
-      if (detail?.id === orderId)
-        setDetail((d) => ({ ...d, status: newStatus }));
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to update status",
-      });
-    }
+  function handleStatusChange(orderId, newStatus) {
+    dispatch({ type: "UPDATE_ORDER_STATUS", id: orderId, status: newStatus });
+    dispatch({
+      type: "SET_TOAST",
+      message: `Order status updated to ${STATUS_LABELS[newStatus]}`,
+    });
+    if (detail?.id === orderId) setDetail((d) => ({ ...d, status: newStatus }));
   }
 
   return (
@@ -4188,86 +3913,48 @@ function AdminMasterControl() {
   const [newLocName, setNewLocName] = useState("");
   const [tab, setTab] = useState("locations");
 
-  async function saveSettings() {
-    try {
-      const saved = await api("/api/admin/settings", {
-        method: "PUT",
-        body: settings,
-      });
-      dispatch({ type: "UPDATE_SETTINGS", settings: saved });
-      dispatch({ type: "SET_TOAST", message: "Settings saved!" });
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to save settings",
-      });
-    }
+  function saveSettings() {
+    dispatch({ type: "UPDATE_SETTINGS", settings });
+    dispatch({ type: "SET_TOAST", message: "Settings saved!" });
   }
-  async function addLocation() {
+  function addLocation() {
     if (!newLocName.trim()) {
       dispatch({ type: "SET_TOAST", message: "Enter a location name" });
       return;
     }
-    try {
-      const loc = await api("/api/admin/locations", {
-        method: "POST",
-        body: { name: newLocName.trim(), sortOrder: locations.length + 1 },
-      });
-      const updated = [...locations, loc];
-      setLocations(updated);
-      dispatch({ type: "ADD_LOCATION", location: loc });
-      setNewLocName("");
-      dispatch({ type: "SET_TOAST", message: "Location added!" });
-    } catch (err) {
+    const loc = {
+      id: "loc_" + Date.now(),
+      name: newLocName.trim(),
+      isDefault: false,
+      isActive: true,
+      sortOrder: locations.length + 1,
+    };
+    const updated = [...locations, loc];
+    setLocations(updated);
+    updated.forEach((l) =>
       dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to add location",
-      });
-    }
+        type: l.id === loc.id ? "ADD_LOCATION" : "UPDATE_LOCATION",
+        location: l,
+      }),
+    );
+    dispatch({ type: "ADD_LOCATION", location: loc });
+    setNewLocName("");
+    dispatch({ type: "SET_TOAST", message: "Location added!" });
   }
-  async function setDefault(id) {
-    try {
-      await api(`/api/admin/locations/${id}`, {
-        method: "PUT",
-        body: { isDefault: true },
-      });
-      const updated = locations.map((l) => ({ ...l, isDefault: l.id === id }));
-      setLocations(updated);
-      updated.forEach((l) =>
-        dispatch({ type: "UPDATE_LOCATION", location: l }),
-      );
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to set default",
-      });
-    }
+  function setDefault(id) {
+    const updated = locations.map((l) => ({ ...l, isDefault: l.id === id }));
+    setLocations(updated);
+    updated.forEach((l) => dispatch({ type: "UPDATE_LOCATION", location: l }));
   }
-  async function deleteLoc(id) {
-    try {
-      await api(`/api/admin/locations/${id}`, { method: "DELETE" });
-      const updated = locations.filter((l) => l.id !== id);
-      setLocations(updated);
-      dispatch({ type: "DELETE_LOCATION", id });
-      dispatch({ type: "SET_TOAST", message: "Location removed" });
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to remove location",
-      });
-    }
+  function deleteLoc(id) {
+    const updated = locations.filter((l) => l.id !== id);
+    setLocations(updated);
+    dispatch({ type: "DELETE_LOCATION", id });
+    dispatch({ type: "SET_TOAST", message: "Location removed" });
   }
-  async function saveFields() {
-    try {
-      await api("/api/admin/form-fields", { method: "PUT", body: { fields } });
-      dispatch({ type: "UPDATE_FORM_FIELDS", fields });
-      dispatch({ type: "SET_TOAST", message: "Form fields saved!" });
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to save fields",
-      });
-    }
+  function saveFields() {
+    dispatch({ type: "UPDATE_FORM_FIELDS", fields });
+    dispatch({ type: "SET_TOAST", message: "Form fields saved!" });
   }
 
   const tabs = ["locations", "branding", "form"];
@@ -4592,8 +4279,29 @@ function AdminMasterControl() {
 }
 
 function AdminAdmins() {
-  const { state, dispatch } = useApp();
-  const [admins, setAdmins] = useState(state.adminAccounts || []);
+  const [admins, setAdmins] = useState([
+    {
+      id: "adm1",
+      name: "Principal Wang",
+      email: "wang@wonderworld.edu",
+      role: "SUPER_ADMIN",
+      isActive: true,
+    },
+    {
+      id: "adm2",
+      name: "Ms. Taylor",
+      email: "taylor@wonderworld.edu",
+      role: "MANAGER",
+      isActive: true,
+    },
+    {
+      id: "adm3",
+      name: "Mr. Lee",
+      email: "lee@wonderworld.edu",
+      role: "STAFF",
+      isActive: true,
+    },
+  ]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -4601,15 +4309,7 @@ function AdminAdmins() {
     role: "STAFF",
     password: "",
   });
-
-  useEffect(() => {
-    api("/api/admin/accounts")
-      .then((data) => {
-        setAdmins(data);
-        dispatch({ type: "SET_ADMIN_ACCOUNTS", accounts: data });
-      })
-      .catch(() => {});
-  }, []);
+  const { dispatch } = useApp();
   const roleColors = {
     SUPER_ADMIN: "var(--mint)",
     MANAGER: "var(--sky)",
@@ -4621,29 +4321,18 @@ function AdminAdmins() {
     STAFF: "var(--lemon-dark)",
   };
 
-  async function handleAdd() {
-    if (!form.name || !form.email || !form.password) {
-      dispatch({
-        type: "SET_TOAST",
-        message: "Name, email and password are required",
-      });
+  function handleAdd() {
+    if (!form.name || !form.email) {
+      dispatch({ type: "SET_TOAST", message: "Name and email are required" });
       return;
     }
-    try {
-      const newAdmin = await api("/api/admin/accounts", {
-        method: "POST",
-        body: form,
-      });
-      setAdmins([...admins, { ...newAdmin, isActive: true }]);
-      dispatch({ type: "SET_TOAST", message: "Admin account created!" });
-      setShowForm(false);
-      setForm({ name: "", email: "", role: "STAFF", password: "" });
-    } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to create admin",
-      });
-    }
+    setAdmins([
+      ...admins,
+      { ...form, id: "adm_" + Date.now(), isActive: true },
+    ]);
+    dispatch({ type: "SET_TOAST", message: "Admin account created!" });
+    setShowForm(false);
+    setForm({ name: "", email: "", role: "STAFF", password: "" });
   }
 
   return (
@@ -4747,23 +4436,12 @@ function AdminAdmins() {
                 {a.role !== "SUPER_ADMIN" && (
                   <div style={{ display: "flex", gap: 4 }}>
                     <button
-                      onClick={async () => {
-                        try {
-                          await api(`/api/admin/accounts/${a.id}`, {
-                            method: "PUT",
-                            body: { isActive: false },
-                          });
-                          setAdmins(admins.filter((x) => x.id !== a.id));
-                          dispatch({
-                            type: "SET_TOAST",
-                            message: "Admin removed",
-                          });
-                        } catch (err) {
-                          dispatch({
-                            type: "SET_TOAST",
-                            message: err.message || "Failed to remove admin",
-                          });
-                        }
+                      onClick={() => {
+                        setAdmins(admins.filter((x) => x.id !== a.id));
+                        dispatch({
+                          type: "SET_TOAST",
+                          message: "Admin removed",
+                        });
                       }}
                       style={{
                         padding: "4px 10px",
@@ -5074,9 +4752,8 @@ function AdminShell() {
 // ══════════════════════════════════════════════════════════════
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, INITIAL_STATE);
-  const [email, setEmail] = useState("wang@wonderworld.edu");
-  const [pass, setPass] = useState("AdminPass123!");
 
+  console.log(state);
   // Inject global CSS once
   useEffect(() => {
     const id = "ww-global-styles";
@@ -5090,25 +4767,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Restore session from localStorage on page reload
-    const token = localStorage.getItem("ww_token");
-    const role = localStorage.getItem("ww_role");
-    if (token && role) {
-      // Validate token is still good by fetching role-specific data
-      // (server will 401 if expired, caught below)
-    }
-
     async function initAppData() {
       try {
-        const [products, locations, settings, formFields] = await Promise.all([
-          api("/api/products"),
-          api("/api/locations"),
-          api("/api/settings"),
-          api("/api/form-fields"),
+        // Fetch essential public data
+        const [prodRes, locRes, settingsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/products`),
+          fetch(`${API_BASE_URL}/api/locations`),
+          fetch(`${API_BASE_URL}/api/settings`),
         ]);
+
+        const products = await prodRes.json();
+        const locations = await locRes.json();
+        const settings = await settingsRes.json();
+
+        console.log(locRes);
+
+        // Update state via reducer
         dispatch({
           type: "SET_INITIAL_DATA",
-          payload: { products, locations, settings, formFields },
+          payload: { products, locations, settings },
         });
       } catch (error) {
         console.error("Initialization failed:", error);
@@ -5118,33 +4795,10 @@ export default function App() {
   }, []);
   const showAdminDirect = !state.currentUser && state.view === "admin";
 
-  async function handleAdminLogin(e) {
+  function handleAdminLogin(e) {
     e.preventDefault();
-    // dispatch({ type: "LOGIN", user: ADMIN_USER, role: "admin" });
-    // dispatch({ type: "SET_VIEW", view: "admin", adminPage: "dashboard" });
-    debugger;
-    const emailEl = e.target.querySelector('input[type="email"]');
-    const passEl = e.target.querySelector('input[type="password"]');
-    console.log(passEl.value);
-    try {
-      const data = await api("/api/auth/admin/login", {
-        method: "POST",
-        body: {
-          email: emailEl?.value || "wang@wonderworld.edu",
-          password: passEl?.value || "adminpass",
-        },
-      });
-      localStorage.setItem("ww_token", data.token);
-      localStorage.setItem("ww_role", "admin");
-      dispatch({ type: "LOGIN", user: data.admin, role: "admin" });
-      dispatch({ type: "SET_VIEW", view: "admin", adminPage: "dashboard" });
-    } catch (err) {
-      console.log(err);
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Admin login failed",
-      });
-    }
+    dispatch({ type: "LOGIN", user: ADMIN_USER, role: "admin" });
+    dispatch({ type: "SET_VIEW", view: "admin", adminPage: "dashboard" });
   }
 
   return (
@@ -5212,19 +4866,15 @@ export default function App() {
               >
                 <Input
                   label="Admin Email"
-                  value={email}
-                  onChange={setEmail}
+                  value="wang@wonderworld.edu"
+                  onChange={() => {}}
                   type="email"
-                  placeholder="parent@email.com"
-                  required
                 />
                 <Input
                   label="Password"
-                  value={pass}
-                  onChange={setPass}
+                  value="adminpass"
+                  onChange={() => {}}
                   type="password"
-                  placeholder="••••••••"
-                  required
                 />
                 <button
                   type="submit"
