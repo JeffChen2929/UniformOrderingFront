@@ -203,7 +203,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 // Attaches the JWT token from localStorage to every request.
 // Usage: api("/api/products")  OR  api("/api/orders", { method:"POST", body:{...} })
 async function api(path, { method = "GET", body, token } = {}) {
-   const isFormData = options.body instanceof FormData;
+  //  const isFormData = options.body instanceof FormData;
   const storedToken = token || localStorage.getItem("ww_token");
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
