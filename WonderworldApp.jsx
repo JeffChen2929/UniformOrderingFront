@@ -5496,19 +5496,24 @@ function AdminMasterControl() {
 function AdminAdmins() {
   const { dispatch } = useApp();
   const [admins, setAdmins] = useState([]);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    role: "STAFF",
-    password: "",
-  });
+
+  // modal mode: null | "add" | "edit"
+  const [modalMode, setModalMode] = useState(null);
+  const [editTarget, setEditTarget] = useState(null); // the admin being edited
+  const BLANK = { name: "", email: "", role: "STAFF", password: "" };
+  const [form, setForm] = useState(BLANK);
 
   useEffect(() => {
     api("/api/admin/accounts")
       .then(setAdmins)
       .catch(() => {});
   }, []);
+
+  // How many active Super Admins are there right now?
+  const superAdminCount = admins.filter(
+    (a) => a.role === "SUPER_ADMIN" && a.isActive,
+  ).length;
+
   const roleColors = {
     SUPER_ADMIN: "var(--mint)",
     MANAGER: "var(--sky)",
@@ -5520,208 +5525,218 @@ function AdminAdmins() {
     STAFF: "var(--lemon-dark)",
   };
 
+  function openAdd() {
+    setForm(BLANK);
+    setEditTarget(null);
+    setModalMode("add");
+  }
+
+  function openEdit(a) {
+    setForm({ name: a.name, email: a.email, role: a.role, password: "" });
+    setEditTarget(a);
+    setModalMode("edit");
+  }
+
+  function closeModal() {
+    setModalMode(null);
+    setEditTarget(null);
+    setForm(BLANK);
+  }
+
   async function handleAdd() {
     if (!form.name || !form.email || !form.password) {
-      dispatch({
-        type: "SET_TOAST",
-        message: "Name, email and password are required",
-      });
+      dispatch({ type: "SET_TOAST", message: "Name, email and password are required" });
       return;
     }
     try {
-      const newAdmin = await api("/api/admin/accounts", {
-        method: "POST",
-        body: form,
-      });
+      const newAdmin = await api("/api/admin/accounts", { method: "POST", body: form });
       setAdmins([...admins, { ...newAdmin, isActive: true }]);
       dispatch({ type: "SET_TOAST", message: "Admin account created!" });
-      setShowForm(false);
-      setForm({ name: "", email: "", role: "STAFF", password: "" });
+      closeModal();
     } catch (err) {
-      dispatch({
-        type: "SET_TOAST",
-        message: err.message || "Failed to create admin",
-      });
+      dispatch({ type: "SET_TOAST", message: err.message || "Failed to create admin" });
     }
   }
 
+  async function handleUpdate() {
+    if (!form.name) {
+      dispatch({ type: "SET_TOAST", message: "Name is required" });
+      return;
+    }
+    try {
+      const body = { name: form.name, role: form.role, isActive: editTarget.isActive };
+      if (form.password) body.password = form.password;
+      const updated = await api(`/api/admin/accounts/${editTarget.id}`, {
+        method: "PUT",
+        body,
+      });
+      setAdmins(admins.map((a) => (a.id === updated.id ? updated : a)));
+      dispatch({ type: "SET_TOAST", message: "Account updated!" });
+      closeModal();
+    } catch (err) {
+      dispatch({ type: "SET_TOAST", message: err.message || "Failed to update admin" });
+    }
+  }
+
+  async function handleToggleActive(a) {
+    try {
+      const updated = await api(`/api/admin/accounts/${a.id}`, {
+        method: "PUT",
+        body: { isActive: !a.isActive },
+      });
+      setAdmins(admins.map((x) => (x.id === updated.id ? updated : x)));
+      dispatch({
+        type: "SET_TOAST",
+        message: updated.isActive ? "Account activated" : "Account deactivated",
+      });
+    } catch (err) {
+      dispatch({ type: "SET_TOAST", message: err.message || "Failed to update account" });
+    }
+  }
+
+  async function handleDelete(a) {
+    if (!window.confirm(`Permanently delete "${a.name}"? This cannot be undone.`)) return;
+    try {
+      await api(`/api/admin/accounts/${a.id}`, { method: "DELETE" });
+      setAdmins(admins.filter((x) => x.id !== a.id));
+      dispatch({ type: "SET_TOAST", message: "Account deleted" });
+    } catch (err) {
+      dispatch({ type: "SET_TOAST", message: err.message || "Failed to delete admin" });
+    }
+  }
+
+  // Whether deleting this account would leave zero Super Admins
+  function isLastSuperAdmin(a) {
+    return a.role === "SUPER_ADMIN" && superAdminCount <= 1;
+  }
+
+  const tdStyle = { padding: "10px 10px", borderBottom: "0.5px solid var(--border)" };
+  const btnBase = { border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 10px" };
+
   return (
     <div className="animate-fade">
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginBottom: 14,
-        }}
-      >
-        <Btn variant="admin" size="sm" onClick={() => setShowForm(true)}>
-          + Add Admin
-        </Btn>
+      {/* Header row */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
+        <Btn variant="admin" size="sm" onClick={openAdd}>+ Add Admin</Btn>
       </div>
-      <table
-        style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
-      >
+
+      {/* Accounts table */}
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
         <thead>
           <tr>
-            {["Name", "Email", "Role", "Status", ""].map((h) => (
-              <th
-                key={h}
-                className="txt-th"
-                style={{
-                  padding: "7px 10px",
-                  textAlign: "left",
-                  background: "var(--bg2)",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                {h}
-              </th>
+            {["Name", "Email", "Role", "Status", "Actions"].map((h) => (
+              <th key={h} className="txt-th" style={{ padding: "7px 10px", textAlign: "left", background: "var(--bg2)", borderBottom: "1px solid var(--border)" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {admins.map((a) => (
-            <tr key={a.id}>
-              <td
-                style={{
-                  padding: "10px 10px",
-                  borderBottom: "0.5px solid var(--border)",
-                  fontWeight: 700,
-                }}
-              >
-                {a.name}
-              </td>
-              <td
-                style={{
-                  padding: "10px 10px",
-                  borderBottom: "0.5px solid var(--border)",
-                  color: "var(--text2)",
-                }}
-              >
-                {a.email}
-              </td>
-              <td
-                style={{
-                  padding: "10px 10px",
-                  borderBottom: "0.5px solid var(--border)",
-                }}
-              >
-                <span
-                  style={{
-                    background: roleColors[a.role],
-                    color: roleTextColors[a.role],
-                    fontSize: 10,
-                    fontWeight: 800,
-                    padding: "3px 9px",
-                    borderRadius: 30,
-                  }}
-                >
-                  {a.role.replace("_", " ")}
-                </span>
-              </td>
-              <td
-                style={{
-                  padding: "10px 10px",
-                  borderBottom: "0.5px solid var(--border)",
-                }}
-              >
-                <span
-                  style={{
-                    color: a.isActive ? "var(--mint-dark)" : "var(--text3)",
-                    fontWeight: 700,
-                    fontSize: 11,
-                  }}
-                >
-                  {a.isActive ? "Active" : "Inactive"}
-                </span>
-              </td>
-              <td
-                style={{
-                  padding: "10px 10px",
-                  borderBottom: "0.5px solid var(--border)",
-                }}
-              >
-                {a.role !== "SUPER_ADMIN" && (
+          {admins.map((a) => {
+            const lastSuper = isLastSuperAdmin(a);
+            return (
+              <tr key={a.id}>
+                <td style={{ ...tdStyle, fontWeight: 700 }}>{a.name}</td>
+                <td style={{ ...tdStyle, color: "var(--text2)" }}>{a.email}</td>
+                <td style={tdStyle}>
+                  <span style={{ background: roleColors[a.role], color: roleTextColors[a.role], fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: 30 }}>
+                    {a.role.replace("_", " ")}
+                  </span>
+                </td>
+                <td style={tdStyle}>
+                  {/* Active / Inactive toggle — disabled for last Super Admin */}
+                  <button
+                    onClick={() => !lastSuper && handleToggleActive(a)}
+                    title={lastSuper ? "Cannot deactivate the last Super Admin" : a.isActive ? "Click to deactivate" : "Click to activate"}
+                    style={{
+                      ...btnBase,
+                      background: a.isActive ? "var(--mint)" : "var(--bg3)",
+                      color: a.isActive ? "var(--mint-dark)" : "var(--text3)",
+                      cursor: lastSuper ? "not-allowed" : "pointer",
+                      opacity: lastSuper ? 0.5 : 1,
+                    }}
+                  >
+                    {a.isActive ? "Active" : "Inactive"}
+                  </button>
+                </td>
+                <td style={tdStyle}>
                   <div style={{ display: "flex", gap: 4 }}>
+                    {/* Edit */}
                     <button
-                      onClick={async () => {
-                        try {
-                          await api(`/api/admin/accounts/${a.id}`, {
-                            method: "PUT",
-                            body: { isActive: false },
-                          });
-                          setAdmins(admins.filter((x) => x.id !== a.id));
-                          dispatch({
-                            type: "SET_TOAST",
-                            message: "Admin deactivated",
-                          });
-                        } catch (err) {
-                          dispatch({
-                            type: "SET_TOAST",
-                            message: err.message || "Failed to remove admin",
-                          });
-                        }
-                      }}
+                      onClick={() => openEdit(a)}
+                      style={{ ...btnBase, background: "var(--sky)", color: "var(--sky-dark)" }}
+                    >
+                      Edit
+                    </button>
+
+                    {/* Delete — disabled when this is the last Super Admin */}
+                    <button
+                      onClick={() => !lastSuper && handleDelete(a)}
+                      disabled={lastSuper}
+                      title={lastSuper ? "Cannot delete the last Super Admin account" : "Delete account"}
                       style={{
-                        padding: "4px 10px",
-                        border: "none",
-                        borderRadius: 5,
-                        background: "var(--peach)",
-                        color: "var(--peach-dark)",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: "pointer",
+                        ...btnBase,
+                        background: lastSuper ? "var(--bg3)" : "var(--peach)",
+                        color: lastSuper ? "var(--text3)" : "var(--peach-dark)",
+                        cursor: lastSuper ? "not-allowed" : "pointer",
+                        opacity: lastSuper ? 0.5 : 1,
                       }}
                     >
-                      Remove
+                      Delete
                     </button>
                   </div>
-                )}
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
-      {showForm && (
-        <Modal title="Add Admin Account" onClose={() => setShowForm(false)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Input
-              label="Full Name"
-              value={form.name}
-              onChange={(v) => setForm({ ...form, name: v })}
-              required
+
+      {/* Super Admin note */}
+      {superAdminCount <= 1 && (
+        <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 10 }}>
+          ⚠ At least one Super Admin account must remain. Add another Super Admin before deleting or demoting this one.
+        </p>
+      )}
+
+      {/* Add / Edit modal */}
+      {modalMode && (
+        <Modal
+          title={modalMode === "add" ? "Add Admin Account" : `Edit — ${editTarget?.name}`}
+          onClose={closeModal}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Input label="Full Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
+            <Input label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" required
+              style={{ opacity: modalMode === "edit" ? 0.5 : 1 }}
             />
-            <Input
-              label="Email"
-              value={form.email}
-              onChange={(v) => setForm({ ...form, email: v })}
-              type="email"
-              required
-            />
+            {modalMode === "edit" && (
+              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: -6 }}>Email cannot be changed.</p>
+            )}
             <Input
               label="Role"
               value={form.role}
               onChange={(v) => setForm({ ...form, role: v })}
               options={[
                 { value: "SUPER_ADMIN", label: "Super Admin" },
-                { value: "MANAGER", label: "Manager" },
-                { value: "STAFF", label: "Staff" },
+                { value: "MANAGER",     label: "Manager"     },
+                { value: "STAFF",       label: "Staff"        },
               ]}
             />
             <Input
-              label="Temporary Password"
+              label={modalMode === "edit" ? "New Password (leave blank to keep current)" : "Temporary Password"}
               value={form.password}
               onChange={(v) => setForm({ ...form, password: v })}
               type="password"
-              required
+              required={modalMode === "add"}
             />
             <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-              <Btn variant="admin" onClick={handleAdd} style={{ flex: 1 }}>
-                Create Account
+              <Btn
+                variant="admin"
+                onClick={modalMode === "add" ? handleAdd : handleUpdate}
+                style={{ flex: 1 }}
+              >
+                {modalMode === "add" ? "Create Account" : "Save Changes"}
               </Btn>
-              <Btn variant="ghost" onClick={() => setShowForm(false)}>
-                Cancel
-              </Btn>
+              <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
             </div>
           </div>
         </Modal>
