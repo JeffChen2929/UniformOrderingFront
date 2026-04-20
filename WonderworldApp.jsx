@@ -197,25 +197,37 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
 
-//const API_BASE_URL = "http://localhost:4000";
-
-// ─── API HELPER ───────────────────────────────────────────────
-// Attaches the JWT token from localStorage to every request.
-// Usage: api("/api/products")  OR  api("/api/orders", { method:"POST", body:{...} })
-async function api(path, { method = "GET", body, token } = {}) {
-  //  const isFormData = options.body instanceof FormData;
-  const storedToken = token || localStorage.getItem("ww_token");
+// ─── API HELPERS ──────────────────────────────────────────────
+// Reads JWT from localStorage and attaches it to every request.
+async function api(path, { method = "GET", body } = {}) {
+  const token = localStorage.getItem("ww_token");
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
       "Content-Type": "application/json",
-      ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Request failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+// For multipart/form-data (file uploads). Do NOT set Content-Type —
+// the browser sets it automatically with the correct boundary.
+async function apiUpload(path, formData) {
+  const token = localStorage.getItem("ww_token");
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Upload failed: ${res.status}`);
   }
   return res.json();
 }
@@ -231,6 +243,7 @@ const INITIAL_PRODUCTS = [
     description: "Breathable cotton polo in school colours.",
     imageEmoji: "👕",
     imageBg: "#e8f7f0",
+    images: [],
     category: "Tops",
     sellingPrice: 45,
     costPrice: 22,
@@ -243,6 +256,7 @@ const INITIAL_PRODUCTS = [
     description: "Comfortable elastic-waist shorts.",
     imageEmoji: "🩳",
     imageBg: "#e6f3fb",
+    images: [],
     category: "Bottoms",
     sellingPrice: 38,
     costPrice: 18,
@@ -255,6 +269,7 @@ const INITIAL_PRODUCTS = [
     description: "Classic pinafore, machine washable.",
     imageEmoji: "👗",
     imageBg: "#fef0eb",
+    images: [],
     category: "Bottoms",
     sellingPrice: 55,
     costPrice: 28,
@@ -267,6 +282,7 @@ const INITIAL_PRODUCTS = [
     description: "Warm fleece-lined jacket with logo.",
     imageEmoji: "🧥",
     imageBg: "#f0eeff",
+    images: [],
     category: "Tops",
     sellingPrice: 78,
     costPrice: 41,
@@ -279,6 +295,7 @@ const INITIAL_PRODUCTS = [
     description: "White ankle socks, pack of 3 pairs.",
     imageEmoji: "🧦",
     imageBg: "#fdfae7",
+    images: [],
     category: "Accessories",
     sellingPrice: 18,
     costPrice: 7,
@@ -291,6 +308,7 @@ const INITIAL_PRODUCTS = [
     description: "Durable backpack with name tag slot.",
     imageEmoji: "🎒",
     imageBg: "#e6f3fb",
+    images: [],
     category: "Accessories",
     sellingPrice: 65,
     costPrice: 32,
@@ -703,6 +721,24 @@ input,select,textarea { font-family:var(--font-body); }
 .animate-fade { animation:fadeIn .25s ease both; }
 .animate-slide { animation:slideIn .2s ease both; }
 .animate-pop  { animation:popIn .2s ease both; }
+
+/* ── Typography scale — edit here to resize the whole app ── */
+body          { font-size:15px; }
+.txt-xs       { font-size:11px; }
+.txt-sm       { font-size:13px; }
+.txt-base     { font-size:15px; }
+.txt-lg       { font-size:17px; }
+.txt-xl       { font-size:20px; }
+.txt-2xl      { font-size:24px; }
+.txt-label    { font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--text2); }
+.txt-muted    { font-size:12px; color:var(--text3); }
+.txt-price    { font-size:14px; font-weight:800; color:var(--mint-dark); }
+.txt-section  { font-family:var(--font-display); font-size:17px; font-weight:700; color:var(--text); }
+.txt-stat-val { font-family:var(--font-display); font-size:22px; font-weight:900; }
+.txt-stat-lbl { font-size:10px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--text3); }
+.txt-badge    { font-size:10px; font-weight:800; white-space:nowrap; }
+.txt-th       { font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--text3); }
+.txt-card-h3  { font-size:14px; font-weight:700; }
 `;
 
 // ─── SHARED COMPONENTS ────────────────────────────────────────
@@ -830,14 +866,7 @@ function Input({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, ...style }}>
       {label && (
-        <label
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: "var(--text2)",
-            letterSpacing: ".04em",
-          }}
-        >
+        <label className="txt-label">
           {label}
           {required && <span style={{ color: "var(--peach-dark)" }}> *</span>}
         </label>
@@ -851,14 +880,12 @@ function Badge({ status }) {
   const [bg, col] = (STATUS_COLORS[status] || "#eef0f4:#5a6072").split(":");
   return (
     <span
+      className="txt-badge"
       style={{
         background: bg,
         color: col,
         padding: "3px 10px",
         borderRadius: 30,
-        fontSize: 10,
-        fontWeight: 800,
-        whiteSpace: "nowrap",
       }}
     >
       {STATUS_LABELS[status] || status}
@@ -889,13 +916,11 @@ function Modal({ children, onClose, title, width = 480 }) {
       style={{
         position: "fixed",
         inset: 0,
-        // background: "rgba(0,0,0,.45)",
+        background: "rgba(0,0,0,.45)",
         zIndex: 1000,
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "center",
-        padding: 16,
-        marginTop: 250,
       }}
       onClick={onClose}
     >
@@ -909,6 +934,7 @@ function Modal({ children, onClose, title, width = 480 }) {
           maxWidth: width,
           maxHeight: "90vh",
           overflowY: "auto",
+          margin: "16px 0", // ← add this
           boxShadow: "var(--shadow-lg)",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -921,15 +947,7 @@ function Modal({ children, onClose, title, width = 480 }) {
             marginBottom: 16,
           }}
         >
-          <h2
-            style={{
-              fontFamily: "var(--font-display)",
-              fontWeight: 700,
-              fontSize: 17,
-            }}
-          >
-            {title}
-          </h2>
+          <h2 className="txt-section">{title}</h2>
           <button
             onClick={onClose}
             style={{
@@ -1007,30 +1025,14 @@ function StatCard({ label, value, sub, color = "var(--mint-dark)" }) {
         boxShadow: "var(--shadow)",
       }}
     >
-      <div
-        style={{
-          fontSize: 10,
-          fontWeight: 800,
-          color: "var(--text3)",
-          letterSpacing: ".06em",
-          textTransform: "uppercase",
-          marginBottom: 6,
-        }}
-      >
+      <div className="txt-stat-lbl" style={{ marginBottom: 6 }}>
         {label}
       </div>
-      <div
-        style={{
-          fontSize: 22,
-          fontWeight: 900,
-          color,
-          fontFamily: "var(--font-display)",
-        }}
-      >
+      <div className="txt-stat-val" style={{ color }}>
         {value}
       </div>
       {sub && (
-        <div style={{ fontSize: 11, color: "var(--text3)", marginTop: 3 }}>
+        <div className="txt-muted" style={{ marginTop: 3 }}>
           {sub}
         </div>
       )}
@@ -1048,16 +1050,7 @@ function SectionTitle({ children, action }) {
         marginBottom: 14,
       }}
     >
-      <h2
-        style={{
-          fontFamily: "var(--font-display)",
-          fontWeight: 700,
-          fontSize: 17,
-          color: "var(--text)",
-        }}
-      >
-        {children}
-      </h2>
+      <h2 className="txt-section">{children}</h2>
       {action}
     </div>
   );
@@ -1073,7 +1066,9 @@ function EmptyState({ emoji, message }) {
       }}
     >
       <div style={{ fontSize: 36, marginBottom: 8 }}>{emoji}</div>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>{message}</div>
+      <div className="txt-sm" style={{ fontWeight: 600 }}>
+        {message}
+      </div>
     </div>
   );
 }
@@ -1085,7 +1080,7 @@ function Toast({ message, onClose }) {
   }, []);
   return (
     <div
-      className="animate-fade"
+      className="animate-fade txt-sm"
       style={{
         position: "fixed",
         bottom: 24,
@@ -1094,7 +1089,6 @@ function Toast({ message, onClose }) {
         color: "#fff",
         padding: "12px 20px",
         borderRadius: "var(--radius-sm)",
-        fontSize: 13,
         fontWeight: 700,
         boxShadow: "var(--shadow-lg)",
         zIndex: 2000,
@@ -1135,11 +1129,15 @@ function appReducer(state, action) {
     case "SET_ADMIN_PAGE":
       return { ...state, adminPage: action.page };
     case "LOGIN":
+      // Persist user so page refresh can restore the session
+      try {
+        localStorage.setItem("ww_user", JSON.stringify(action.user));
+      } catch {}
       return {
         ...state,
         currentUser: action.user,
         userRole: action.role,
-        parentPage: "home",
+        parentPage: action.role === "admin" ? state.parentPage : "home",
       };
     case "LOGOUT":
       localStorage.removeItem("ww_token");
@@ -1151,6 +1149,7 @@ function appReducer(state, action) {
         parentPage: "login",
         adminPage: "dashboard",
         cart: [],
+        orders: [],
       };
     case "ADD_TO_CART": {
       const existing = state.cart.findIndex(
@@ -1248,10 +1247,10 @@ function appReducer(state, action) {
         const { products, locations, settings, formFields } = action.payload;
         return {
           ...state,
-          ...(products ? { products } : {}),
-          ...(locations ? { locations } : {}),
+          ...(Array.isArray(products) ? { products } : {}),
+          ...(Array.isArray(locations) ? { locations } : {}),
           ...(settings ? { settings } : {}),
-          ...(formFields ? { formFields } : {}),
+          // ...(Array.isArray(formFields) ? { formFields } : {}),
         };
       } catch (e) {
         return state;
@@ -1259,10 +1258,13 @@ function appReducer(state, action) {
     }
     case "SET_ORDERS":
       return { ...state, orders: action.orders };
-    case "SET_INVENTORY":
-      return { ...state, inventory: action.inventory };
-    case "SET_ADMIN_ACCOUNTS":
-      return { ...state, adminAccounts: action.accounts };
+    case "SET_ADMIN_DATA":
+      return {
+        ...state,
+        ...(action.orders ? { orders: action.orders } : {}),
+        ...(action.inventory ? { inventory: action.inventory } : {}),
+        ...(action.products ? { products: action.products } : {}),
+      };
 
     default:
       return state;
@@ -1278,11 +1280,10 @@ const INITIAL_STATE = {
   cart: [],
   products: INITIAL_PRODUCTS,
   inventory: INITIAL_INVENTORY,
-  orders: INITIAL_ORDERS,
-  locations: [],
+  orders: [],
+  locations: INITIAL_LOCATIONS,
   settings: INITIAL_SETTINGS,
   formFields: INITIAL_FORM_FIELDS,
-  adminAccounts: [],
   toast: null,
   productDetail: null,
 };
@@ -1293,8 +1294,8 @@ const INITIAL_STATE = {
 
 function ParentLogin() {
   const { dispatch, state } = useApp();
-  const [email, setEmail] = useState("sarah@example.com");
-  const [pass, setPass] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
   const [isReg, setIsReg] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
@@ -1303,6 +1304,7 @@ function ParentLogin() {
     phone: "",
     password: "",
   });
+  const [loginLoading, setLoginLoading] = useState(false);
 
   async function handleLogin() {
     if (!email || !pass) {
@@ -1312,6 +1314,7 @@ function ParentLogin() {
       });
       return;
     }
+    setLoginLoading(true);
     try {
       const data = await api("/api/auth/parent/login", {
         method: "POST",
@@ -1322,7 +1325,12 @@ function ParentLogin() {
       dispatch({ type: "LOGIN", user: data.parent, role: "parent" });
       dispatch({ type: "SET_PARENT_PAGE", page: "home" });
     } catch (err) {
-      dispatch({ type: "SET_TOAST", message: err.message || "Login failed" });
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Login failed. Check your email and password.",
+      });
+    } finally {
+      setLoginLoading(false);
     }
   }
   async function handleRegister() {
@@ -1333,6 +1341,7 @@ function ParentLogin() {
       });
       return;
     }
+    setLoginLoading(true);
     try {
       const data = await api("/api/auth/parent/register", {
         method: "POST",
@@ -1345,8 +1354,11 @@ function ParentLogin() {
     } catch (err) {
       dispatch({
         type: "SET_TOAST",
-        message: err.message || "Registration failed",
+        message:
+          err.message || "Registration failed. Email may already be in use.",
       });
+    } finally {
+      setLoginLoading(false);
     }
   }
   return (
@@ -1423,9 +1435,10 @@ function ParentLogin() {
               onClick={handleLogin}
               fullWidth
               size="lg"
+              disabled={loginLoading}
               style={{ marginTop: 4 }}
             >
-              Log In
+              {loginLoading ? "Logging in…" : "Log In"}
             </Btn>
             <p
               style={{
@@ -1450,51 +1463,31 @@ function ParentLogin() {
               </button>
             </p>
             <div
-              style={{
-                borderTop: "1px dashed var(--border)",
-                paddingTop: 12,
-                textAlign: "center",
-              }}
+              style={{ borderTop: "1px dashed var(--border)", paddingTop: 12 }}
             >
-              <button
-                onClick={async () => {
-                  try {
-                    const data = await api("/api/auth/admin/login", {
-                      method: "POST",
-                      body: {
-                        email: "wang@wonderworld.edu",
-                        password: "adminpass",
-                      },
-                    });
-                    localStorage.setItem("ww_token", data.token);
-                    localStorage.setItem("ww_role", "admin");
-                    dispatch({
-                      type: "LOGIN",
-                      user: data.admin,
-                      role: "admin",
-                    });
-                    dispatch({
-                      type: "SET_VIEW",
-                      view: "admin",
-                      adminPage: "dashboard",
-                    });
-                  } catch (err) {
-                    dispatch({
-                      type: "SET_TOAST",
-                      message: err.message || "Admin login failed",
-                    });
-                  }
-                }}
+              <p
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--text3)",
                   fontSize: 11,
-                  cursor: "pointer",
+                  color: "var(--text3)",
+                  textAlign: "center",
+                  marginBottom: 8,
                 }}
               >
-                Admin Login →
-              </button>
+                Admin?{" "}
+                <button
+                  onClick={() => dispatch({ type: "SET_VIEW", view: "admin" })}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--sky-dark)",
+                    fontWeight: 700,
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  Go to Admin Login →
+                </button>
+              </p>
             </div>
           </div>
         ) : (
@@ -1546,9 +1539,10 @@ function ParentLogin() {
               onClick={handleRegister}
               fullWidth
               size="lg"
+              disabled={loginLoading}
               style={{ marginTop: 4 }}
             >
-              Create Account
+              {loginLoading ? "Creating account…" : "Create Account"}
             </Btn>
             <p
               style={{
@@ -1579,6 +1573,479 @@ function ParentLogin() {
   );
 }
 
+// ─── PRODUCT IMAGE GALLERY (shared parent/admin) ──────────────
+// Shows a scrollable carousel if images[] exist, else shows emoji fallback.
+function ProductImageGallery({
+  images = [],
+  imageEmoji = "👕",
+  imageBg = "#e8f7f0",
+  height = 180,
+  showThumbs = true,
+}) {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const hasImages = images && images.length > 0;
+
+  function prev(e) {
+    e.stopPropagation();
+    setActiveIdx((i) => (i - 1 + images.length) % images.length);
+  }
+  function next(e) {
+    e.stopPropagation();
+    setActiveIdx((i) => (i + 1) % images.length);
+  }
+
+  // touch/swipe support
+  const touchStart = useState(null);
+  function onTouchStart(e) {
+    touchStart[1](e.touches[0].clientX);
+  }
+  function onTouchEnd(e) {
+    if (touchStart[0] === null) return;
+    const dx = e.changedTouches[0].clientX - touchStart[0];
+    if (Math.abs(dx) > 40) dx < 0 ? next(e) : prev(e);
+    touchStart[1](null);
+  }
+
+  if (!hasImages) {
+    return (
+      <div
+        style={{
+          height,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: height * 0.35,
+          background: imageBg,
+          borderRadius: "var(--radius-sm)",
+          flexShrink: 0,
+        }}
+      >
+        {imageEmoji}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ userSelect: "none" }}>
+      {/* Main image */}
+      <div
+        style={{
+          position: "relative",
+          height,
+          borderRadius: "var(--radius-sm)",
+          overflow: "hidden",
+          background: "#f0f0f0",
+          cursor: images.length > 1 ? "grab" : "default",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <img
+          src={images[activeIdx]}
+          alt=""
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            transition: "opacity .2s",
+          }}
+        />
+        {/* Arrows */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={prev}
+              style={{
+                position: "absolute",
+                left: 6,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "rgba(0,0,0,.45)",
+                border: "none",
+                color: "#fff",
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2,
+              }}
+            >
+              ‹
+            </button>
+            <button
+              onClick={next}
+              style={{
+                position: "absolute",
+                right: 6,
+                top: "50%",
+                transform: "translateY(-50%)",
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "rgba(0,0,0,.45)",
+                border: "none",
+                color: "#fff",
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 2,
+              }}
+            >
+              ›
+            </button>
+            {/* Dot indicators */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 8,
+                left: 0,
+                right: 0,
+                display: "flex",
+                justifyContent: "center",
+                gap: 5,
+              }}
+            >
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveIdx(i);
+                  }}
+                  style={{
+                    width: i === activeIdx ? 16 : 6,
+                    height: 6,
+                    borderRadius: 3,
+                    background:
+                      i === activeIdx ? "#fff" : "rgba(255,255,255,.55)",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    transition: "all .2s",
+                  }}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        {/* Counter pill */}
+        {images.length > 1 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              background: "rgba(0,0,0,.5)",
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 700,
+              padding: "2px 7px",
+              borderRadius: 30,
+            }}
+          >
+            {activeIdx + 1}/{images.length}
+          </div>
+        )}
+      </div>
+      {/* Thumbnails */}
+      {showThumbs && images.length > 1 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            marginTop: 8,
+            overflowX: "auto",
+            paddingBottom: 2,
+          }}
+        >
+          {images.map((src, i) => (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveIdx(i);
+              }}
+              style={{
+                flexShrink: 0,
+                width: 44,
+                height: 44,
+                borderRadius: 6,
+                overflow: "hidden",
+                border: `2px solid ${i === activeIdx ? "var(--mint-dark)" : "transparent"}`,
+                background: "none",
+                padding: 0,
+                cursor: "pointer",
+                transition: "border-color .15s",
+              }}
+            >
+              <img
+                src={src}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── IMAGE UPLOADER (admin only) ─────────────────────────────
+// Converts selected files to base64 data URIs for preview and storage.
+// In production, swap the base64 logic for a presigned S3 upload.
+// ImageUploader — two layers of state:
+//   existingUrls  : string[]   — already-saved server URLs (can be reordered/deleted)
+//   pendingFiles  : File[]     — newly picked files not yet uploaded
+// The parent receives both via onChange(urls) and onNewFiles(files).
+function ImageUploader({ images = [], onChange, onNewFiles }) {
+  // Local preview URLs for File objects (revoked on unmount)
+  const [previews, setPreviews] = useState([]); // { url, file }[]
+
+  useEffect(() => {
+    return () => previews.forEach((p) => URL.revokeObjectURL(p.url));
+  }, [previews]);
+
+  function handleFiles(files) {
+    const newPreviews = Array.from(files).map((file) => ({
+      url: URL.createObjectURL(file),
+      file,
+    }));
+    const updated = [...previews, ...newPreviews];
+    setPreviews(updated);
+    if (onNewFiles) onNewFiles(updated.map((p) => p.file));
+  }
+
+  // Remove from existing saved URLs
+  function removeExisting(idx) {
+    onChange(images.filter((_, i) => i !== idx));
+  }
+
+  // Remove from pending (not-yet-uploaded) previews
+  function removePending(idx) {
+    URL.revokeObjectURL(previews[idx].url);
+    const updated = previews.filter((_, i) => i !== idx);
+    setPreviews(updated);
+    if (onNewFiles) onNewFiles(updated.map((p) => p.file));
+  }
+
+  function moveLeft(idx) {
+    if (idx === 0) return;
+    const next = [...images];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    onChange(next);
+  }
+
+  function moveRight(idx) {
+    if (idx === images.length - 1) return;
+    const next = [...images];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    onChange(next);
+  }
+
+  const allThumbs = [
+    ...images.map((src, i) => ({ src, type: "existing", idx: i })),
+    ...previews.map((p, i) => ({ src: p.url, type: "pending", idx: i })),
+  ];
+
+  return (
+    <div>
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 700,
+          color: "var(--text2)",
+          marginBottom: 6,
+        }}
+      >
+        Product Photos{" "}
+        <span style={{ fontWeight: 400, color: "var(--text3)" }}>
+          (first photo = cover · reorder saved photos with ‹ ›)
+        </span>
+      </div>
+      {allThumbs.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginBottom: 10,
+          }}
+        >
+          {allThumbs.map(({ src, type, idx }, i) => (
+            <div
+              key={`${type}-${idx}`}
+              style={{
+                position: "relative",
+                width: 72,
+                height: 72,
+                borderRadius: 8,
+                overflow: "hidden",
+                border: `2px solid ${i === 0 ? "var(--mint-dark)" : type === "pending" ? "var(--sky-mid)" : "var(--border)"}`,
+              }}
+            >
+              <img
+                src={src}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+              {i === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    background: "rgba(26,122,85,.85)",
+                    color: "#fff",
+                    fontSize: 8,
+                    fontWeight: 800,
+                    textAlign: "center",
+                    padding: "2px 0",
+                  }}
+                >
+                  COVER
+                </div>
+              )}
+              {type === "pending" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    background: "rgba(77,168,218,.85)",
+                    color: "#fff",
+                    fontSize: 7,
+                    fontWeight: 800,
+                    textAlign: "center",
+                    padding: "2px 0",
+                  }}
+                >
+                  NEW
+                </div>
+              )}
+              <div
+                style={{
+                  position: "absolute",
+                  top: type === "pending" ? 14 : 2,
+                  right: 2,
+                  display: "flex",
+                  gap: 2,
+                }}
+              >
+                {type === "existing" && idx > 0 && (
+                  <button
+                    onClick={() => moveLeft(idx)}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 3,
+                      background: "rgba(0,0,0,.6)",
+                      border: "none",
+                      color: "#fff",
+                      fontSize: 9,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    ‹
+                  </button>
+                )}
+                {type === "existing" && idx < images.length - 1 && (
+                  <button
+                    onClick={() => moveRight(idx)}
+                    style={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: 3,
+                      background: "rgba(0,0,0,.6)",
+                      border: "none",
+                      color: "#fff",
+                      fontSize: 9,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    ›
+                  </button>
+                )}
+                <button
+                  onClick={() =>
+                    type === "existing"
+                      ? removeExisting(idx)
+                      : removePending(idx)
+                  }
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderRadius: 3,
+                    background: "rgba(180,0,0,.75)",
+                    border: "none",
+                    color: "#fff",
+                    fontSize: 10,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <label
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          padding: "14px 10px",
+          border: "2px dashed var(--border)",
+          borderRadius: "var(--radius-sm)",
+          cursor: "pointer",
+          background: "var(--bg2)",
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          handleFiles(e.dataTransfer.files);
+        }}
+      >
+        <span style={{ fontSize: 22 }}>📷</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text2)" }}>
+          Click or drag photos here
+        </span>
+        <span style={{ fontSize: 10, color: "var(--text3)" }}>
+          JPG, PNG, WebP · up to 10 files · 8 MB each
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: "none" }}
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </label>
+    </div>
+  );
+}
+
 function ParentHome() {
   const { state, dispatch } = useApp();
   const [cat, setCat] = useState("All");
@@ -1586,6 +2053,10 @@ function ParentHome() {
   const [addSize, setAddSize] = useState("");
   const [addQty, setAddQty] = useState(1);
   const cats = ["All", "Tops", "Bottoms", "Accessories"];
+
+  // Products come from initAppData via SET_INITIAL_DATA.
+  // Show a loading message until at least one product arrives.
+  const productsLoaded = state.products.length > 0;
   const filtered = state.products.filter(
     (p) => p.isActive && (cat === "All" || p.category === cat),
   );
@@ -1605,6 +2076,7 @@ function ParentHome() {
         unitPrice: selectedProduct.sellingPrice,
         imageEmoji: selectedProduct.imageEmoji,
         imageBg: selectedProduct.imageBg,
+        images: selectedProduct.images || [],
       },
     });
     dispatch({
@@ -1615,6 +2087,20 @@ function ParentHome() {
     setAddSize("");
     setAddQty(1);
   }
+
+  if (!productsLoaded)
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          padding: "60px 20px",
+          color: "var(--text3)",
+        }}
+      >
+        <div style={{ fontSize: 32, marginBottom: 10 }}>🎒</div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>Loading uniforms…</div>
+      </div>
+    );
 
   return (
     <div className="animate-fade">
@@ -1715,14 +2201,18 @@ function ParentHome() {
             <div
               style={{
                 height: 100,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 40,
-                background: p.imageBg,
+                overflow: "hidden",
+                borderRadius: "var(--radius-sm) var(--radius-sm) 0 0",
+                flexShrink: 0,
               }}
             >
-              {p.imageEmoji}
+              <ProductImageGallery
+                images={p.images}
+                imageEmoji={p.imageEmoji}
+                imageBg={p.imageBg}
+                height={100}
+                showThumbs={false}
+              />
             </div>
             <div style={{ padding: "10px 12px" }}>
               <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>
@@ -1776,19 +2266,14 @@ function ParentHome() {
           title={selectedProduct.name}
           onClose={() => setSelectedProduct(null)}
         >
-          <div
-            style={{
-              height: 140,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 60,
-              background: selectedProduct.imageBg,
-              borderRadius: "var(--radius-sm)",
-              marginBottom: 14,
-            }}
-          >
-            {selectedProduct.imageEmoji}
+          <div style={{ marginBottom: 14 }}>
+            <ProductImageGallery
+              images={selectedProduct.images}
+              imageEmoji={selectedProduct.imageEmoji}
+              imageBg={selectedProduct.imageBg}
+              height={200}
+              showThumbs={true}
+            />
           </div>
           <p
             style={{
@@ -1930,6 +2415,7 @@ function ParentCart() {
     notes: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const subtotal = cart.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
   const threshold = settings.discountThreshold;
@@ -1940,6 +2426,7 @@ function ParentCart() {
   const visibleFields = formFields.filter((f) => f.isVisible);
 
   async function handleSubmit() {
+    if (submitting) return;
     const required = visibleFields.filter((f) => f.isRequired);
     for (const f of required) {
       if (!form[f.fieldKey]) {
@@ -1951,6 +2438,7 @@ function ParentCart() {
       dispatch({ type: "SET_TOAST", message: "Your cart is empty" });
       return;
     }
+    setSubmitting(true);
     try {
       const newOrder = await api("/api/orders", {
         method: "POST",
@@ -1972,8 +2460,10 @@ function ParentCart() {
     } catch (err) {
       dispatch({
         type: "SET_TOAST",
-        message: err.message || "Failed to submit order",
+        message: err.message || "Failed to submit order. Please try again.",
       });
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -2060,15 +2550,31 @@ function ParentCart() {
                 width: 40,
                 height: 40,
                 borderRadius: 8,
-                background: item.imageBg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 20,
+                overflow: "hidden",
                 flexShrink: 0,
               }}
             >
-              {item.imageEmoji}
+              {item.images && item.images.length > 0 ? (
+                <img
+                  src={item.images[0]}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    background: item.imageBg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                  }}
+                >
+                  {item.imageEmoji}
+                </div>
+              )}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontSize: 13 }}>
@@ -2334,9 +2840,10 @@ function ParentCart() {
           onClick={handleSubmit}
           fullWidth
           size="lg"
+          disabled={submitting}
           style={{ marginTop: 6 }}
         >
-          Submit Order 🎉
+          {submitting ? "Submitting…" : "Submit Order 🎉"}
         </Btn>
       </Card>
     </div>
@@ -2352,27 +2859,30 @@ function ParentOrders() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadOrders() {
-      try {
-        const orders = await api("/api/orders/mine");
+    api("/api/orders/mine")
+      .then((orders) => {
         setMyOrders(orders);
         dispatch({ type: "SET_ORDERS", orders });
-      } catch (err) {
-        // fall back to local state
+      })
+      .catch(() =>
         setMyOrders(
           state.orders.filter((o) => o.parentId === state.currentUser?.id),
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadOrders();
+        ),
+      )
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading)
     return (
-      <div style={{ textAlign: "center", padding: 40, color: "var(--text3)" }}>
-        Loading orders…
+      <div
+        style={{
+          textAlign: "center",
+          padding: 40,
+          color: "var(--text3)",
+          fontSize: 13,
+        }}
+      >
+        Loading your orders…
       </div>
     );
 
@@ -2405,7 +2915,8 @@ function ParentOrders() {
               <span
                 style={{ fontSize: 11, fontWeight: 700, color: "var(--text3)" }}
               >
-                {o.orderNumber} · {o.createdAt}
+                {o.orderNumber} ·{" "}
+                {o.createdAt ? new Date(o.createdAt).toLocaleDateString() : ""}
               </span>
               <Badge status={o.status} />
             </div>
@@ -2433,7 +2944,7 @@ function ParentOrders() {
                   color: "var(--mint-dark)",
                 }}
               >
-                ${o.totalAmount.toFixed(2)}
+                ${Number(o.totalAmount).toFixed(2)}
               </span>
               {o.discountRate > 0 && (
                 <span
@@ -2465,7 +2976,9 @@ function ParentOrders() {
           >
             <Badge status={detail.status} />
             <span style={{ fontSize: 11, color: "var(--text3)" }}>
-              {detail.createdAt}
+              {detail.createdAt
+                ? new Date(detail.createdAt).toLocaleDateString()
+                : ""}
             </span>
           </div>
           <div
@@ -2523,7 +3036,7 @@ function ParentOrders() {
                   {item.productName} ({item.size}) ×{item.quantity}
                 </span>
                 <span style={{ fontWeight: 700 }}>
-                  ${(item.unitPrice * item.quantity).toFixed(2)}
+                  ${(Number(item.unitPrice) * item.quantity).toFixed(2)}
                 </span>
               </div>
             ))}
@@ -2544,7 +3057,7 @@ function ParentOrders() {
               }}
             >
               <span style={{ color: "var(--text3)" }}>Subtotal</span>
-              <span>${detail.subtotal.toFixed(2)}</span>
+              <span>${Number(detail.subtotal).toFixed(2)}</span>
             </div>
             {detail.discountRate > 0 && (
               <div
@@ -2573,7 +3086,7 @@ function ParentOrders() {
               }}
             >
               <span>Total</span>
-              <span>${detail.totalAmount.toFixed(2)}</span>
+              <span>${Number(detail.totalAmount).toFixed(2)}</span>
             </div>
           </div>
         </Modal>
@@ -2714,20 +3227,32 @@ function AdminDashboard() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
+    // Load real stats from the backend
     api("/api/admin/stats")
       .then(setStats)
-      .catch(() => {}); // fall back to local calculation below
+      .catch(() => {});
+    // Also refresh the admin product list (includes costPrice) and recent orders
+    Promise.all([api("/api/admin/products"), api("/api/admin/orders?limit=20")])
+      .then(([prods, ordersData]) => {
+        dispatch({
+          type: "SET_ADMIN_DATA",
+          products: prods,
+          orders: ordersData.orders || ordersData,
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const totalRev =
     stats?.revenue ??
     orders
       .filter((o) => o.status !== "CANCELLED")
-      .reduce((s, o) => s + o.totalAmount, 0);
+      .reduce((s, o) => s + Number(o.totalAmount), 0);
   const profit = stats?.profit ?? 0;
   const pending =
     stats?.pendingOrders ??
     orders.filter((o) => ["SUBMITTED", "REVIEW"].includes(o.status)).length;
+  const totalOrders = stats?.totalOrders ?? orders.length;
 
   const productQtys = stats?.topProducts
     ? stats.topProducts.map((p) => ({
@@ -2756,7 +3281,6 @@ function AdminDashboard() {
 
   return (
     <div className="animate-fade">
-      <SectionTitle>Dashboard</SectionTitle>
       <div
         style={{
           display: "grid",
@@ -2767,7 +3291,7 @@ function AdminDashboard() {
       >
         <StatCard
           label="Total Orders"
-          value={orders.length}
+          value={totalOrders}
           sub={`${pending} pending review`}
         />
         <StatCard
@@ -2790,7 +3314,7 @@ function AdminDashboard() {
       </div>
 
       <Card style={{ marginBottom: 14 }}>
-        <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        <h3 className="txt-card-h3" style={{ marginBottom: 12 }}>
           Recent Orders
         </h3>
         <div style={{ overflowX: "auto" }}>
@@ -2802,14 +3326,10 @@ function AdminDashboard() {
                 {["Order", "Child", "Location", "Total", "Status"].map((h) => (
                   <th
                     key={h}
+                    className="txt-th"
                     style={{
                       padding: "6px 8px",
                       textAlign: "left",
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: "var(--text3)",
-                      textTransform: "uppercase",
-                      letterSpacing: ".05em",
                       borderBottom: "1px solid var(--border)",
                       whiteSpace: "nowrap",
                     }}
@@ -2850,7 +3370,7 @@ function AdminDashboard() {
       </Card>
 
       <Card>
-        <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+        <h3 className="txt-card-h3" style={{ marginBottom: 12 }}>
           Products by Order Volume
         </h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2923,11 +3443,22 @@ function AdminProducts() {
   const { state, dispatch } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // Load admin product list (includes costPrice) on mount
+  useEffect(() => {
+    api("/api/admin/products")
+      .then((prods) => dispatch({ type: "SET_ADMIN_DATA", products: prods }))
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false));
+  }, []);
+
   const [form, setForm] = useState({
     name: "",
     description: "",
     imageEmoji: "👕",
     imageBg: "#e8f7f0",
+    images: [],
     category: "Tops",
     sellingPrice: "",
     costPrice: "",
@@ -2936,15 +3467,16 @@ function AdminProducts() {
   });
   const sizes = ["T1", "T2", "T3", "T4", "T5"];
   const categories = ["Tops", "Bottoms", "Accessories", "Sets"];
-  const [file, setFile] = useState(null);
 
   function openNew() {
     setEditing(null);
+    setPendingFiles([]);
     setForm({
       name: "",
       description: "",
       imageEmoji: "👕",
       imageBg: "#e8f7f0",
+      images: [],
       category: "Tops",
       sellingPrice: "",
       costPrice: "",
@@ -2955,66 +3487,22 @@ function AdminProducts() {
   }
   function openEdit(p) {
     setEditing(p);
+    setPendingFiles([]);
     setForm({
       ...p,
+      images: p.images || [],
       sellingPrice: String(p.sellingPrice),
       costPrice: String(p.costPrice),
     });
     setShowForm(true);
   }
-  // async function handleSave() {
-  //   if (!form.name || !form.sellingPrice || !form.costPrice) {
-  //     dispatch({
-  //       type: "SET_TOAST",
-  //       message: "Name, selling price and cost price are required",
-  //     });
-  //     return;
-  //   }
-  //   const body = {
-  //     ...form,
-  //     sellingPrice: parseFloat(form.sellingPrice),
-  //     costPrice: parseFloat(form.costPrice),
-  //     sizes: form.sizes,
-  //   };
-  //   try {
-  //     if (editing) {
-  //       const product = await api(`/api/admin/products/${editing.id}`, {
-  //         method: "PUT",
-  //         body,
-  //       });
-  //       dispatch({
-  //         type: "UPDATE_PRODUCT",
-  //         product: { ...editing, ...product, sizes: form.sizes },
-  //       });
-  //     } else {
-  //       const product = await api("/api/admin/products", {
-  //         method: "POST",
-  //         body,
-  //       });
-  //       dispatch({
-  //         type: "ADD_PRODUCT",
-  //         product: {
-  //           ...product,
-  //           sizes: form.sizes,
-  //           imageEmoji: form.imageEmoji,
-  //           imageBg: form.imageBg || "#e8f7f0",
-  //         },
-  //       });
-  //     }
-  //     dispatch({
-  //       type: "SET_TOAST",
-  //       message: editing ? "Product updated!" : "Product added!",
-  //     });
-  //     setShowForm(false);
-  //   } catch (err) {
-  //     dispatch({
-  //       type: "SET_TOAST",
-  //       message: err.message || "Failed to save product",
-  //     });
-  //   }
-  // }
+  // Track which images are brand-new File objects vs existing URLs
+  const [pendingFiles, setPendingFiles] = useState([]);
+  const [saving, setSaving] = useState(false);
 
   async function handleSave() {
+    if (saving) return;
+    setSaving(true);
     if (!form.name || !form.sellingPrice || !form.costPrice) {
       dispatch({
         type: "SET_TOAST",
@@ -3022,71 +3510,78 @@ function AdminProducts() {
       });
       return;
     }
-
+    dispatch({ type: "SET_TOAST", message: "Saving…" });
     try {
-      const formData = new FormData();
-
-      // append all form fields
-      Object.keys(form).forEach((key) => {
-        if (key === "sizes") {
-          formData.append(key, JSON.stringify(form[key]));
-        } else {
-          formData.append(key, form[key]);
-        }
-      });
-
-      // ensure numeric fields are numbers
-      formData.set("sellingPrice", parseFloat(form.sellingPrice));
-      formData.set("costPrice", parseFloat(form.costPrice));
-
-      // append file (IMPORTANT)
-      if (file) {
-        formData.append("image", file);
-      }
+      const body = {
+        name: form.name,
+        description: form.description,
+        imageEmoji: form.imageEmoji,
+        imageBg: form.imageBg,
+        category: form.category,
+        sellingPrice: parseFloat(form.sellingPrice),
+        costPrice: parseFloat(form.costPrice),
+        sizes: form.sizes,
+        isActive: form.isActive,
+      };
 
       let product;
-
       if (editing) {
+        // 1a. Update metadata
         product = await api(`/api/admin/products/${editing.id}`, {
           method: "PUT",
-          body: formData,
-        });
-
-        dispatch({
-          type: "UPDATE_PRODUCT",
-          product: { ...editing, ...product, sizes: form.sizes },
+          body,
         });
       } else {
-        product = await api("/api/admin/products", {
-          method: "POST",
-          body: formData,
-        });
+        // 1b. Create new product (no images yet)
+        product = await api("/api/admin/products", { method: "POST", body });
+      }
 
-        dispatch({
-          type: "ADD_PRODUCT",
-          product: {
-            ...product,
-            sizes: form.sizes,
-            imageEmoji: form.imageEmoji,
-            imageBg: form.imageBg || "#e8f7f0",
-          },
+      const productId = product.id;
+
+      // 2. Separate existing URLs from new File objects
+      const existingUrls = form.images.filter((img) => typeof img === "string");
+      const newFiles = pendingFiles; // File objects collected by ImageUploader
+
+      // 3. If editing and the URL list changed (reordered/deleted), sync it
+      if (editing && existingUrls.length !== (editing.images || []).length) {
+        await api(`/api/admin/products/${productId}/images`, {
+          method: "PUT",
+          body: { images: existingUrls },
         });
       }
+
+      // 4. Upload any new File objects via multipart POST
+      if (newFiles.length > 0) {
+        const fd = new FormData();
+        newFiles.forEach((file) => fd.append("images", file));
+        const uploaded = await apiUpload(
+          `/api/admin/products/${productId}/images`,
+          fd,
+        );
+        product = { ...product, images: uploaded.images };
+      } else {
+        product = { ...product, images: existingUrls };
+      }
+
+      // 5. Reload full product list so admin table is fresh
+      const updatedProducts = await api("/api/admin/products");
+      dispatch({ type: "SET_ADMIN_DATA", products: updatedProducts });
 
       dispatch({
         type: "SET_TOAST",
         message: editing ? "Product updated!" : "Product added!",
       });
-
+      setPendingFiles([]);
       setShowForm(false);
     } catch (err) {
       dispatch({
         type: "SET_TOAST",
         message: err.message || "Failed to save product",
       });
+    } finally {
+      setSaving(false);
     }
   }
-
   function toggleSize(s) {
     setForm((f) => ({
       ...f,
@@ -3098,15 +3593,29 @@ function AdminProducts() {
 
   return (
     <div className="animate-fade">
-      <SectionTitle
-        action={
-          <Btn variant="admin" size="sm" onClick={openNew}>
-            + Add Product
-          </Btn>
-        }
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 14,
+        }}
       >
-        Products
-      </SectionTitle>
+        <Btn variant="admin" size="sm" onClick={openNew}>
+          + Add Product
+        </Btn>
+      </div>
+      {loadingProducts && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "24px 0",
+            color: "var(--text3)",
+            fontSize: 13,
+          }}
+        >
+          Loading products…
+        </div>
+      )}
       <div style={{ overflowX: "auto" }}>
         <table
           style={{
@@ -3129,14 +3638,10 @@ function AdminProducts() {
               ].map((h) => (
                 <th
                   key={h}
+                  className="txt-th"
                   style={{
                     padding: "7px 10px",
                     textAlign: "left",
-                    fontSize: 10,
-                    fontWeight: 800,
-                    color: "var(--text3)",
-                    textTransform: "uppercase",
-                    letterSpacing: ".05em",
                     background: "var(--bg2)",
                     borderBottom: "1px solid var(--border)",
                     whiteSpace: "nowrap",
@@ -3164,15 +3669,35 @@ function AdminProducts() {
                         width: 32,
                         height: 32,
                         borderRadius: 6,
-                        background: p.imageBg,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 16,
+                        overflow: "hidden",
                         flexShrink: 0,
                       }}
                     >
-                      {p.imageEmoji}
+                      {p.images && p.images.length > 0 ? (
+                        <img
+                          src={p.images[0]}
+                          alt=""
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            background: p.imageBg,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 16,
+                          }}
+                        >
+                          {p.imageEmoji}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <div style={{ fontWeight: 700 }}>{p.name}</div>
@@ -3327,7 +3852,10 @@ function AdminProducts() {
       {showForm && (
         <Modal
           title={editing ? "Edit Product" : "Add Product"}
-          onClose={() => setShowForm(false)}
+          onClose={() => {
+            setShowForm(false);
+            setPendingFiles([]);
+          }}
           width={500}
         >
           <div
@@ -3366,7 +3894,7 @@ function AdminProducts() {
               options={categories}
             />
             <Input
-              label="Emoji Icon"
+              label="Fallback Emoji"
               value={form.imageEmoji}
               onChange={(v) => setForm({ ...form, imageEmoji: v })}
               placeholder="👕"
@@ -3379,11 +3907,35 @@ function AdminProducts() {
             type="textarea"
             style={{ marginBottom: 10 }}
           />
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files[0])}
-          />
+          <div style={{ marginBottom: 14 }}>
+            <ImageUploader
+              images={form.images || []}
+              onChange={(imgs) => setForm({ ...form, images: imgs })}
+              onNewFiles={(files) => setPendingFiles(files)}
+            />
+          </div>
+          {/* Preview of uploaded images */}
+          {form.images && form.images.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "var(--text2)",
+                  marginBottom: 6,
+                }}
+              >
+                Preview
+              </div>
+              <ProductImageGallery
+                images={form.images}
+                imageEmoji={form.imageEmoji}
+                imageBg={form.imageBg || "#e8f7f0"}
+                height={160}
+                showThumbs={true}
+              />
+            </div>
+          )}
           <div style={{ marginBottom: 14 }}>
             <div
               style={{
@@ -3438,8 +3990,13 @@ function AdminProducts() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="admin" onClick={handleSave} style={{ flex: 1 }}>
-              Save Product
+            <Btn
+              variant="admin"
+              onClick={handleSave}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              {saving ? "Saving…" : editing ? "Save Changes" : "Add Product"}
             </Btn>
             <Btn variant="ghost" onClick={() => setShowForm(false)}>
               Cancel
@@ -3455,6 +4012,7 @@ function AdminInventory() {
   const { state, dispatch } = useApp();
   const [filter, setFilter] = useState("");
   const [apiRows, setApiRows] = useState(null);
+  const [saving, setSaving] = useState({});
 
   useEffect(() => {
     api("/api/admin/inventory")
@@ -3464,8 +4022,8 @@ function AdminInventory() {
 
   const rows = apiRows
     ? apiRows.map((i) => ({
-        product: { id: i.productId, name: i.product?.name || "" },
         invId: i.id,
+        product: { id: i.productId, name: i.product?.name || "" },
         size: i.size,
         total: i.totalQty,
         reserved: i.reservedQty,
@@ -3494,41 +4052,68 @@ function AdminInventory() {
       )
     : rows;
 
-  async function updateTotal(productId, size, val) {
-    const inv = state.inventory[productId]?.[size] || { total: 0, reserved: 0 };
-    const newTotal = Math.max(parseInt(val) || 0, inv.reserved);
+  async function updateTotal(row, val) {
+    const newTotal = Math.max(parseInt(val) || 0, row.reserved);
+    const key = `${row.product.id}-${row.size}`;
+    setSaving((s) => ({ ...s, [key]: true }));
+    // Optimistic local update
+    setApiRows((prev) =>
+      prev
+        ? prev.map((r) =>
+            r.id === row.invId
+              ? {
+                  ...r,
+                  totalQty: newTotal,
+                  availableQty: newTotal - r.reservedQty,
+                }
+              : r,
+          )
+        : prev,
+    );
     dispatch({
       type: "UPDATE_INVENTORY",
-      productId,
-      size,
-      inv: { ...inv, total: newTotal },
+      productId: row.product.id,
+      size: row.size,
+      inv: { total: newTotal, reserved: row.reserved },
     });
-    // Find the inventory row id for the API call
-    const row = rows.find((r) => r.product.id === productId && r.size === size);
-    if (row?.invId) {
-      api(`/api/admin/inventory/${row.invId}`, {
-        method: "PUT",
-        body: { totalQty: newTotal },
-      }).catch(() => {});
+    try {
+      if (row.invId) {
+        await api(`/api/admin/inventory/${row.invId}`, {
+          method: "PUT",
+          body: { totalQty: newTotal },
+        });
+      }
+    } catch (err) {
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to update inventory",
+      });
+    } finally {
+      setSaving((s) => {
+        const n = { ...s };
+        delete n[key];
+        return n;
+      });
     }
   }
 
   function exportCSV() {
-    // Use the server-side export endpoint which always has the latest data
     window.open(`${API_BASE_URL}/api/admin/inventory/export`, "_blank");
   }
 
   return (
     <div className="animate-fade">
-      <SectionTitle
-        action={
-          <Btn variant="admin" size="sm" onClick={exportCSV}>
-            Export CSV
-          </Btn>
-        }
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 14,
+        }}
       >
-        Inventory
-      </SectionTitle>
+        <Btn variant="admin" size="sm" onClick={exportCSV}>
+          Export CSV
+        </Btn>
+      </div>
       <div
         style={{
           background: "var(--lemon)",
@@ -3583,14 +4168,10 @@ function AdminInventory() {
               ].map((h) => (
                 <th
                   key={h}
+                  className="txt-th"
                   style={{
                     padding: "7px 10px",
                     textAlign: "left",
-                    fontSize: 10,
-                    fontWeight: 800,
-                    color: "var(--text3)",
-                    textTransform: "uppercase",
-                    letterSpacing: ".05em",
                     background: "var(--bg2)",
                     borderBottom: "1px solid var(--border)",
                   }}
@@ -3691,9 +4272,7 @@ function AdminInventory() {
                     type="number"
                     defaultValue={r.total}
                     min={r.reserved}
-                    onChange={(e) =>
-                      updateTotal(r.product.id, r.size, e.target.value)
-                    }
+                    onChange={(e) => updateTotal(r, e.target.value)}
                     style={{
                       width: 64,
                       padding: "5px 8px",
@@ -3724,33 +4303,32 @@ function AdminOrders() {
   const [allOrders, setAllOrders] = useState(state.orders);
   const [loading, setLoading] = useState(true);
 
+  // Re-fetch whenever search/filter changes
   useEffect(() => {
-    async function loadOrders() {
-      try {
-        const params = new URLSearchParams();
-        if (search) params.set("search", search);
-        if (filterStatus) params.set("status", filterStatus);
-        if (filterLoc) params.set("locationId", filterLoc);
-        const data = await api(`/api/admin/orders?${params}`);
-        setAllOrders(data.orders || data);
-        dispatch({ type: "SET_ORDERS", orders: data.orders || data });
-      } catch {
-        setAllOrders(state.orders);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadOrders();
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "100" });
+    if (search) params.set("search", search);
+    if (filterStatus) params.set("status", filterStatus);
+    if (filterLoc) params.set("locationId", filterLoc);
+    api(`/api/admin/orders?${params}`)
+      .then((data) => {
+        const orders = data.orders || data;
+        setAllOrders(orders);
+        dispatch({ type: "SET_ORDERS", orders });
+      })
+      .catch(() => setAllOrders(state.orders))
+      .finally(() => setLoading(false));
   }, [search, filterStatus, filterLoc]);
 
+  // Client-side filter as a fast fallback while API data loads
   const filtered = allOrders.filter((o) => {
     const q = search.toLowerCase();
     const matchSearch =
       !q ||
-      o.childName.toLowerCase().includes(q) ||
-      o.parentName.toLowerCase().includes(q) ||
-      o.childClass.toLowerCase().includes(q) ||
-      o.orderNumber.toLowerCase().includes(q);
+      o.childName?.toLowerCase().includes(q) ||
+      o.parentName?.toLowerCase().includes(q) ||
+      o.childClass?.toLowerCase().includes(q) ||
+      o.orderNumber?.toLowerCase().includes(q);
     const matchStatus = !filterStatus || o.status === filterStatus;
     const matchLoc = !filterLoc || o.locationId === filterLoc;
     return matchSearch && matchStatus && matchLoc;
@@ -3762,17 +4340,17 @@ function AdminOrders() {
 
   async function handleStatusChange(orderId, newStatus) {
     try {
-      const updated = await api(`/api/admin/orders/${orderId}/status`, {
+      await api(`/api/admin/orders/${orderId}/status`, {
         method: "PUT",
         body: { status: newStatus },
       });
-      dispatch({ type: "UPDATE_ORDER_STATUS", id: orderId, status: newStatus });
       setAllOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)),
       );
+      dispatch({ type: "UPDATE_ORDER_STATUS", id: orderId, status: newStatus });
       dispatch({
         type: "SET_TOAST",
-        message: `Order status updated to ${STATUS_LABELS[newStatus]}`,
+        message: `Status updated to ${STATUS_LABELS[newStatus]}`,
       });
       if (detail?.id === orderId)
         setDetail((d) => ({ ...d, status: newStatus }));
@@ -3786,15 +4364,17 @@ function AdminOrders() {
 
   return (
     <div className="animate-fade">
-      <SectionTitle
-        action={
-          <Btn variant="admin" size="sm" onClick={exportCSV}>
-            Export CSV
-          </Btn>
-        }
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 14,
+        }}
       >
-        Order Management
-      </SectionTitle>
+        <Btn variant="admin" size="sm" onClick={exportCSV}>
+          Export CSV
+        </Btn>
+      </div>
       <div
         style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}
       >
@@ -3855,7 +4435,18 @@ function AdminOrders() {
           ))}
         </select>
       </div>
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "24px 0",
+            color: "var(--text3)",
+            fontSize: 13,
+          }}
+        >
+          Loading orders…
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState emoji="🔍" message="No orders match your search" />
       ) : (
         <div style={{ overflowX: "auto" }}>
@@ -3880,14 +4471,10 @@ function AdminOrders() {
                 ].map((h) => (
                   <th
                     key={h}
+                    className="txt-th"
                     style={{
                       padding: "7px 10px",
                       textAlign: "left",
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: "var(--text3)",
-                      textTransform: "uppercase",
-                      letterSpacing: ".05em",
                       background: "var(--bg2)",
                       borderBottom: "1px solid var(--border)",
                       whiteSpace: "nowrap",
@@ -4188,6 +4775,24 @@ function AdminMasterControl() {
   const [newLocName, setNewLocName] = useState("");
   const [tab, setTab] = useState("locations");
 
+  // Re-sync local state if the global state loads fresh data from the API
+  useEffect(() => {
+    setSettings({ ...state.settings });
+  }, [state.settings]);
+  useEffect(() => {
+    setLocations([...state.locations]);
+  }, [state.locations]);
+  useEffect(() => {
+    setFields([...state.formFields]);
+  }, [state.formFields]);
+
+  // Load admin-side locations (includes inactive ones) on mount
+  useEffect(() => {
+    api("/api/admin/locations")
+      .then((locs) => setLocations(locs))
+      .catch(() => {});
+  }, []);
+
   async function saveSettings() {
     try {
       const saved = await api("/api/admin/settings", {
@@ -4257,6 +4862,37 @@ function AdminMasterControl() {
       });
     }
   }
+  // ── form-field editing state ─────────────────────────────
+  const BLANK_FIELD = {
+    label: "",
+    fieldKey: "",
+    fieldType: "text",
+    isRequired: false,
+    isVisible: true,
+    isSystem: false,
+  };
+  const [showFieldForm, setShowFieldForm] = useState(false);
+  const [editingField, setEditingField] = useState(null); // null = adding new
+  const [fieldForm, setFieldForm] = useState(BLANK_FIELD);
+
+  function openAddField() {
+    setEditingField(null);
+    setFieldForm(BLANK_FIELD);
+    setShowFieldForm(true);
+  }
+  function openEditField(f) {
+    setEditingField(f);
+    setFieldForm({
+      label: f.label,
+      fieldKey: f.fieldKey,
+      fieldType: f.fieldType || "text",
+      isRequired: f.isRequired,
+      isVisible: f.isVisible,
+      isSystem: f.isSystem,
+    });
+    setShowFieldForm(true);
+  }
+
   async function saveFields() {
     try {
       await api("/api/admin/form-fields", { method: "PUT", body: { fields } });
@@ -4270,6 +4906,81 @@ function AdminMasterControl() {
     }
   }
 
+  async function submitFieldForm() {
+    if (!fieldForm.label.trim() || !fieldForm.fieldKey.trim()) {
+      dispatch({
+        type: "SET_TOAST",
+        message: "Label and Field Key are required",
+      });
+      return;
+    }
+    // Validate fieldKey: lowercase letters, numbers, no spaces
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(fieldForm.fieldKey)) {
+      dispatch({
+        type: "SET_TOAST",
+        message:
+          "Field Key must start with a letter and contain only letters, numbers, underscores",
+      });
+      return;
+    }
+    try {
+      if (editingField) {
+        // Update existing via PUT (toggles + label)
+        const updated = fields.map((f) =>
+          f.id === editingField.id
+            ? {
+                ...f,
+                label: fieldForm.label,
+                fieldType: fieldForm.fieldType,
+                isRequired: fieldForm.isRequired,
+                isVisible: fieldForm.isVisible,
+              }
+            : f,
+        );
+        await api("/api/admin/form-fields", {
+          method: "PUT",
+          body: { fields: updated },
+        });
+        setFields(updated);
+        dispatch({ type: "UPDATE_FORM_FIELDS", fields: updated });
+        dispatch({ type: "SET_TOAST", message: "Field updated!" });
+      } else {
+        // Create new via POST
+        const newField = await api("/api/admin/form-fields", {
+          method: "POST",
+          body: { ...fieldForm, sortOrder: fields.length + 1 },
+        });
+        const updated = [...fields, newField];
+        setFields(updated);
+        dispatch({ type: "UPDATE_FORM_FIELDS", fields: updated });
+        dispatch({ type: "SET_TOAST", message: "Field added!" });
+      }
+      setShowFieldForm(false);
+    } catch (err) {
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to save field",
+      });
+    }
+  }
+
+  async function deleteField(f) {
+    if (!window.confirm(`Delete field "${f.label}"? This cannot be undone.`))
+      return;
+    try {
+      await api(`/api/admin/form-fields/${f.id}`, { method: "DELETE" });
+      const updated = fields.filter((x) => x.id !== f.id);
+      setFields(updated);
+      dispatch({ type: "UPDATE_FORM_FIELDS", fields: updated });
+      dispatch({ type: "SET_TOAST", message: "Field deleted" });
+    } catch (err) {
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to delete field",
+      });
+    }
+  }
+
   const tabs = ["locations", "branding", "form"];
   const tabLabels = {
     locations: "📍 Locations",
@@ -4279,7 +4990,6 @@ function AdminMasterControl() {
 
   return (
     <div className="animate-fade">
-      <SectionTitle>Master Control</SectionTitle>
       <div
         style={{
           display: "flex",
@@ -4315,7 +5025,7 @@ function AdminMasterControl() {
 
       {tab === "locations" && (
         <Card>
-          <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+          <h3 className="txt-card-h3" style={{ marginBottom: 12 }}>
             School Locations
           </h3>
           <div
@@ -4416,7 +5126,7 @@ function AdminMasterControl() {
 
       {tab === "branding" && (
         <Card>
-          <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
+          <h3 className="txt-card-h3" style={{ marginBottom: 12 }}>
             Branding & Page Content
           </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -4495,9 +5205,145 @@ function AdminMasterControl() {
 
       {tab === "form" && (
         <Card>
-          <h3 style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>
-            Order Form Fields
-          </h3>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <h3 className="txt-card-h3">Order Form Fields</h3>
+            <Btn variant="admin" size="sm" onClick={openAddField}>
+              + Add Field
+            </Btn>
+          </div>
+
+          {/* Add / Edit field inline form */}
+          {showFieldForm && (
+            <div
+              style={{
+                background: "var(--sky)",
+                borderRadius: "var(--radius-sm)",
+                padding: 14,
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 13,
+                  marginBottom: 10,
+                  color: "var(--sky-dark)",
+                }}
+              >
+                {editingField ? "Edit Field" : "New Field"}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <Input
+                  label="Label (shown to user)"
+                  value={fieldForm.label}
+                  onChange={(v) => setFieldForm({ ...fieldForm, label: v })}
+                  placeholder="e.g. Teacher Name"
+                  required
+                />
+                <Input
+                  label="Field Key (unique ID)"
+                  value={fieldForm.fieldKey}
+                  onChange={(v) =>
+                    setFieldForm({
+                      ...fieldForm,
+                      fieldKey: v.replace(/\s/g, ""),
+                    })
+                  }
+                  placeholder="e.g. teacherName"
+                  required
+                  style={{ opacity: editingField ? 0.5 : 1 }}
+                />
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <Input
+                  label="Field Type"
+                  value={fieldForm.fieldType}
+                  onChange={(v) => setFieldForm({ ...fieldForm, fieldType: v })}
+                  options={[
+                    { value: "text", label: "Text" },
+                    { value: "textarea", label: "Text Area" },
+                    { value: "select", label: "Dropdown" },
+                    { value: "phone", label: "Phone" },
+                    { value: "email", label: "Email" },
+                  ]}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={fieldForm.isRequired}
+                    onChange={(e) =>
+                      setFieldForm({
+                        ...fieldForm,
+                        isRequired: e.target.checked,
+                      })
+                    }
+                    style={{ accentColor: "var(--sky-dark)" }}
+                  />
+                  Required
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={fieldForm.isVisible}
+                    onChange={(e) =>
+                      setFieldForm({
+                        ...fieldForm,
+                        isVisible: e.target.checked,
+                      })
+                    }
+                    style={{ accentColor: "var(--sky-dark)" }}
+                  />
+                  Visible
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn
+                  variant="admin"
+                  onClick={submitFieldForm}
+                  style={{ flex: 1 }}
+                >
+                  {editingField ? "Update Field" : "Add Field"}
+                </Btn>
+                <Btn variant="ghost" onClick={() => setShowFieldForm(false)}>
+                  Cancel
+                </Btn>
+              </div>
+            </div>
+          )}
+
+          {/* Field list */}
           <div
             style={{
               display: "flex",
@@ -4512,29 +5358,31 @@ function AdminMasterControl() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 10,
+                  gap: 8,
                   padding: "9px 12px",
                   background: "var(--bg2)",
                   borderRadius: "var(--radius-sm)",
                 }}
               >
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
-                  {f.label}
-                </span>
-                {f.isRequired && (
-                  <span
+                {/* Label + type */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
                     style={{
-                      background: "var(--peach)",
-                      color: "var(--peach-dark)",
-                      fontSize: 9,
-                      fontWeight: 800,
-                      padding: "2px 7px",
-                      borderRadius: 30,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    Required
-                  </span>
-                )}
+                    {f.label}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--text3)" }}>
+                    {f.fieldKey} · {f.fieldType || "text"}
+                  </div>
+                </div>
+
+                {/* Badges */}
                 {f.isSystem && (
                   <span
                     style={{
@@ -4544,12 +5392,22 @@ function AdminMasterControl() {
                       fontWeight: 800,
                       padding: "2px 7px",
                       borderRadius: 30,
+                      flexShrink: 0,
                     }}
                   >
                     System
                   </span>
                 )}
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+
+                {/* Visible toggle */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    flexShrink: 0,
+                  }}
+                >
                   <span style={{ fontSize: 10, color: "var(--text3)" }}>
                     Visible
                   </span>
@@ -4562,9 +5420,16 @@ function AdminMasterControl() {
                     }}
                   />
                 </div>
+
+                {/* Required toggle — non-system fields only */}
                 {!f.isSystem && (
                   <div
-                    style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      flexShrink: 0,
+                    }}
                   >
                     <span style={{ fontSize: 10, color: "var(--text3)" }}>
                       Req.
@@ -4579,11 +5444,48 @@ function AdminMasterControl() {
                     />
                   </div>
                 )}
+
+                {/* Edit / Delete — non-system fields only */}
+                {!f.isSystem && (
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button
+                      onClick={() => openEditField(f)}
+                      style={{
+                        padding: "3px 9px",
+                        border: "none",
+                        borderRadius: 5,
+                        background: "var(--sky)",
+                        color: "var(--sky-dark)",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteField(f)}
+                      style={{
+                        padding: "3px 9px",
+                        border: "none",
+                        borderRadius: 5,
+                        background: "var(--peach)",
+                        color: "var(--peach-dark)",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
+
           <Btn variant="admin" onClick={saveFields} fullWidth>
-            Save Field Settings
+            Save Visibility &amp; Required Settings
           </Btn>
         </Card>
       )}
@@ -4592,8 +5494,8 @@ function AdminMasterControl() {
 }
 
 function AdminAdmins() {
-  const { state, dispatch } = useApp();
-  const [admins, setAdmins] = useState(state.adminAccounts || []);
+  const { dispatch } = useApp();
+  const [admins, setAdmins] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -4604,10 +5506,7 @@ function AdminAdmins() {
 
   useEffect(() => {
     api("/api/admin/accounts")
-      .then((data) => {
-        setAdmins(data);
-        dispatch({ type: "SET_ADMIN_ACCOUNTS", accounts: data });
-      })
+      .then(setAdmins)
       .catch(() => {});
   }, []);
   const roleColors = {
@@ -4648,15 +5547,17 @@ function AdminAdmins() {
 
   return (
     <div className="animate-fade">
-      <SectionTitle
-        action={
-          <Btn variant="admin" size="sm" onClick={() => setShowForm(true)}>
-            + Add Admin
-          </Btn>
-        }
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 14,
+        }}
       >
-        Admin Accounts
-      </SectionTitle>
+        <Btn variant="admin" size="sm" onClick={() => setShowForm(true)}>
+          + Add Admin
+        </Btn>
+      </div>
       <table
         style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
       >
@@ -4665,14 +5566,10 @@ function AdminAdmins() {
             {["Name", "Email", "Role", "Status", ""].map((h) => (
               <th
                 key={h}
+                className="txt-th"
                 style={{
                   padding: "7px 10px",
                   textAlign: "left",
-                  fontSize: 10,
-                  fontWeight: 800,
-                  color: "var(--text3)",
-                  textTransform: "uppercase",
-                  letterSpacing: ".05em",
                   background: "var(--bg2)",
                   borderBottom: "1px solid var(--border)",
                 }}
@@ -4756,7 +5653,7 @@ function AdminAdmins() {
                           setAdmins(admins.filter((x) => x.id !== a.id));
                           dispatch({
                             type: "SET_TOAST",
-                            message: "Admin removed",
+                            message: "Admin deactivated",
                           });
                         } catch (err) {
                           dispatch({
@@ -5038,25 +5935,18 @@ function AdminShell() {
                 color: "var(--sky-dark)",
               }}
             >
-              {(state.currentUser?.name || ADMIN_USER.name).charAt(0)}
+              {(state.currentUser?.name || "A").charAt(0)}
             </div>
             <span
               style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)" }}
             >
-              {state.currentUser?.name || ADMIN_USER.name}
+              {state.currentUser?.name || "Admin"}
             </span>
           </div>
         </div>
 
         {/* Page Content */}
-        <div
-          style={{
-            flex: 1,
-            padding: 20,
-            overflowY: "auto",
-            maxHeight: "calc(100vh - 57px)",
-          }}
-        >
+        <div style={{ flex: 1, padding: 20, overflowY: "auto" }}>
           {adminPage === "dashboard" && <AdminDashboard />}
           {adminPage === "products" && <AdminProducts />}
           {adminPage === "inventory" && <AdminInventory />}
@@ -5074,8 +5964,6 @@ function AdminShell() {
 // ══════════════════════════════════════════════════════════════
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, INITIAL_STATE);
-  const [email, setEmail] = useState("wang@wonderworld.edu");
-  const [pass, setPass] = useState("AdminPass123!");
 
   // Inject global CSS once
   useEffect(() => {
@@ -5089,17 +5977,39 @@ export default function App() {
     return () => {}; // leave styles in
   }, []);
 
+  // Restore session from localStorage so a page refresh doesn't log the user out
   useEffect(() => {
-    // Restore session from localStorage on page reload
     const token = localStorage.getItem("ww_token");
     const role = localStorage.getItem("ww_role");
-    if (token && role) {
-      // Validate token is still good by fetching role-specific data
-      // (server will 401 if expired, caught below)
-    }
+    if (!token || !role) return;
+    // Validate the token is still good by hitting a protected endpoint
+    const endpoint =
+      role === "admin" ? "/api/admin/settings" : "/api/orders/mine";
+    api(endpoint)
+      .then(() => {
+        // Token still valid — restore the session with a minimal user object.
+        // The real user details are loaded per-page (dashboard, etc.).
+        const storedUser = (() => {
+          try {
+            return JSON.parse(localStorage.getItem("ww_user") || "null");
+          } catch {
+            return null;
+          }
+        })();
+        if (storedUser) dispatch({ type: "LOGIN", user: storedUser, role });
+      })
+      .catch(() => {
+        // Token expired — clear storage
+        localStorage.removeItem("ww_token");
+        localStorage.removeItem("ww_role");
+        localStorage.removeItem("ww_user");
+      });
+  }, []);
 
+  useEffect(() => {
     async function initAppData() {
       try {
+        // Always fetch public data (products, locations, settings, form-fields)
         const [products, locations, settings, formFields] = await Promise.all([
           api("/api/products"),
           api("/api/locations"),
@@ -5110,40 +6020,45 @@ export default function App() {
           type: "SET_INITIAL_DATA",
           payload: { products, locations, settings, formFields },
         });
-      } catch (error) {
-        console.error("Initialization failed:", error);
+      } catch (err) {
+        console.error("Init failed:", err);
       }
     }
     initAppData();
   }, []);
   const showAdminDirect = !state.currentUser && state.view === "admin";
 
+  const [adminLoginLoading, setAdminLoginLoading] = useState(false);
+
   async function handleAdminLogin(e) {
     e.preventDefault();
-    // dispatch({ type: "LOGIN", user: ADMIN_USER, role: "admin" });
-    // dispatch({ type: "SET_VIEW", view: "admin", adminPage: "dashboard" });
-    debugger;
-    const emailEl = e.target.querySelector('input[type="email"]');
-    const passEl = e.target.querySelector('input[type="password"]');
-    console.log(passEl.value);
+    const fd = new FormData(e.target);
+    const email = fd.get("email")?.trim();
+    const password = fd.get("password");
+    if (!email || !password) {
+      dispatch({
+        type: "SET_TOAST",
+        message: "Please enter email and password",
+      });
+      return;
+    }
+    setAdminLoginLoading(true);
     try {
       const data = await api("/api/auth/admin/login", {
         method: "POST",
-        body: {
-          email: emailEl?.value || "wang@wonderworld.edu",
-          password: passEl?.value || "adminpass",
-        },
+        body: { email, password },
       });
       localStorage.setItem("ww_token", data.token);
       localStorage.setItem("ww_role", "admin");
       dispatch({ type: "LOGIN", user: data.admin, role: "admin" });
       dispatch({ type: "SET_VIEW", view: "admin", adminPage: "dashboard" });
     } catch (err) {
-      console.log(err);
       dispatch({
         type: "SET_TOAST",
         message: err.message || "Admin login failed",
       });
+    } finally {
+      setAdminLoginLoading(false);
     }
   }
 
@@ -5210,21 +6125,36 @@ export default function App() {
                 onSubmit={handleAdminLogin}
                 style={{ display: "flex", flexDirection: "column", gap: 12 }}
               >
-                <Input
-                  label="Admin Email"
-                  value={email}
-                  onChange={setEmail}
+                <input
+                  name="email"
                   type="email"
-                  placeholder="parent@email.com"
-                  required
+                  placeholder="admin@school.com"
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: 13,
+                    background: "var(--bg)",
+                    color: "var(--text)",
+                    outline: "none",
+                    marginBottom: 4,
+                  }}
                 />
-                <Input
-                  label="Password"
-                  value={pass}
-                  onChange={setPass}
+                <input
+                  name="password"
                   type="password"
-                  placeholder="••••••••"
-                  required
+                  placeholder="Password"
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: 13,
+                    background: "var(--bg)",
+                    color: "var(--text)",
+                    outline: "none",
+                  }}
                 />
                 <button
                   type="submit"
@@ -5240,7 +6170,7 @@ export default function App() {
                     fontFamily: "var(--font-body)",
                   }}
                 >
-                  Log In to Admin
+                  {adminLoginLoading ? "Logging in…" : "Log In to Admin"}
                 </button>
                 <button
                   type="button"
