@@ -1503,14 +1503,12 @@ function ParentLogin() {
                 label="First Name"
                 value={form.firstName}
                 onChange={(v) => setForm({ ...form, firstName: v })}
-                placeholder="Sarah"
                 required
               />
               <Input
                 label="Last Name"
                 value={form.lastName}
                 onChange={(v) => setForm({ ...form, lastName: v })}
-                placeholder="Chen"
               />
             </div>
             <Input
@@ -1525,7 +1523,7 @@ function ParentLogin() {
               label="Phone"
               value={form.phone}
               onChange={(v) => setForm({ ...form, phone: v })}
-              placeholder="604-555-0100"
+              placeholder="123-456-7890"
             />
             <Input
               label="Password"
@@ -1646,7 +1644,7 @@ function ProductImageGallery({
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "cover",
+            objectFit: "contain",
             display: "block",
             transition: "opacity .2s",
           }}
@@ -1788,7 +1786,7 @@ function ProductImageGallery({
               <img
                 src={src}
                 alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
             </button>
           ))}
@@ -1894,7 +1892,7 @@ function ImageUploader({ images = [], onChange, onNewFiles }) {
               <img
                 src={src}
                 alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
               />
               {i === 0 && (
                 <div
@@ -2558,7 +2556,7 @@ function ParentCart() {
                 <img
                   src={item.images[0]}
                   alt=""
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
                 />
               ) : (
                 <div
@@ -3279,6 +3277,7 @@ function AdminDashboard() {
 
   const maxQty = Math.max(...productQtys.map((p) => p.totalQty), 1);
 
+  console.log(orders);
   return (
     <div className="animate-fade">
       <div
@@ -3340,30 +3339,34 @@ function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {orders.slice(0, 5).map((o) => (
-                <tr key={o.id}>
-                  {[
-                    o.orderNumber,
-                    `${o.childName} · ${o.childClass}`,
-                    state.locations.find((l) => l.id === o.locationId)?.name ||
-                      o.locationName ||
-                      "",
-                    `$${o.totalAmount.toFixed(2)}`,
-                    <Badge status={o.status} />,
-                  ].map((cell, i) => (
-                    <td
-                      key={i}
-                      style={{
-                        padding: "8px 8px",
-                        borderBottom: "0.5px solid var(--border)",
-                        whiteSpace: i < 3 ? "nowrap" : "normal",
-                      }}
-                    >
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {orders.slice(0, 5).map((o) => {
+                const amount = parseFloat(o.totalAmount);
+                return (
+                  <tr key={o.id}>
+                    {[
+                      o.orderNumber,
+                      `${o.childName} · ${o.childClass}`,
+                      state.locations.find((l) => l.id === o.locationId)
+                        ?.name ||
+                        o.locationName ||
+                        "",
+                      `${isNaN(amount) ? "0.00" : amount.toFixed(2)}`,
+                      <Badge status={o.status} />,
+                    ].map((cell, i) => (
+                      <td
+                        key={i}
+                        style={{
+                          padding: "8px 8px",
+                          borderBottom: "0.5px solid var(--border)",
+                          whiteSpace: i < 3 ? "nowrap" : "normal",
+                        }}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -3680,7 +3683,7 @@ function AdminProducts() {
                           style={{
                             width: "100%",
                             height: "100%",
-                            objectFit: "cover",
+                            objectFit: "contain",
                           }}
                         />
                       ) : (
@@ -4486,100 +4489,107 @@ function AdminOrders() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((o) => (
-                <tr
-                  key={o.id}
-                  style={{ cursor: "pointer", transition: "background .15s" }}
-                  onClick={() => setDetail(o)}
-                >
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                      fontWeight: 700,
-                      color: "var(--sky-dark)",
-                    }}
+              {filtered.map((o) => {
+                const amount = parseFloat(o.totalAmount);
+                return (
+                  <tr
+                    key={o.id}
+                    style={{ cursor: "pointer", transition: "background .15s" }}
+                    onClick={() => setDetail(o)}
                   >
-                    {o.orderNumber}
-                  </td>
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                    }}
-                  >
-                    <div style={{ fontWeight: 700 }}>{o.childName}</div>
-                    <div style={{ fontSize: 10, color: "var(--text3)" }}>
-                      {o.childClass}
-                    </div>
-                  </td>
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                    }}
-                  >
-                    {o.parentName}
-                  </td>
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                      fontSize: 11,
-                    }}
-                  >
-                    {state.locations.find((l) => l.id === o.locationId)?.name ||
-                      o.locationName ||
-                      "—"}
-                  </td>
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                      fontWeight: 800,
-                      color: "var(--mint-dark)",
-                    }}
-                  >
-                    ${o.totalAmount.toFixed(2)}
-                  </td>
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                    }}
-                  >
-                    <Badge status={o.status} />
-                  </td>
-                  <td
-                    style={{
-                      padding: "9px 10px",
-                      borderBottom: "0.5px solid var(--border)",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <select
-                      value={o.status}
-                      onChange={(e) => handleStatusChange(o.id, e.target.value)}
+                    <td
                       style={{
-                        padding: "4px 8px",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-xs)",
-                        fontSize: 11,
-                        background: "var(--bg)",
-                        color: "var(--text)",
-                        outline: "none",
-                        cursor: "pointer",
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                        fontWeight: 700,
+                        color: "var(--sky-dark)",
                       }}
                     >
-                      {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                </tr>
-              ))}
+                      {o.orderNumber}
+                    </td>
+                    <td
+                      style={{
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{o.childName}</div>
+                      <div style={{ fontSize: 10, color: "var(--text3)" }}>
+                        {o.childClass}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                      }}
+                    >
+                      {o.parentName}
+                    </td>
+                    <td
+                      style={{
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                        fontSize: 11,
+                      }}
+                    >
+                      {state.locations.find((l) => l.id === o.locationId)
+                        ?.name ||
+                        o.locationName ||
+                        "—"}
+                    </td>
+                    <td
+                      style={{
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                        fontWeight: 800,
+                        color: "var(--mint-dark)",
+                      }}
+                    >
+                      {/* ${o.totalAmount.toFixed(2)} */}
+                      `${isNaN(amount) ? "0.00" : amount.toFixed(2)}`,
+                    </td>
+                    <td
+                      style={{
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                      }}
+                    >
+                      <Badge status={o.status} />
+                    </td>
+                    <td
+                      style={{
+                        padding: "9px 10px",
+                        borderBottom: "0.5px solid var(--border)",
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <select
+                        value={o.status}
+                        onChange={(e) =>
+                          handleStatusChange(o.id, e.target.value)
+                        }
+                        style={{
+                          padding: "4px 8px",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius-xs)",
+                          fontSize: 11,
+                          background: "var(--bg)",
+                          color: "var(--text)",
+                          outline: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                          <option key={k} value={k}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -4700,7 +4710,7 @@ function AdminOrders() {
               }}
             >
               <span style={{ color: "var(--text3)" }}>Subtotal</span>
-              <span>${detail.subtotal.toFixed(2)}</span>
+              <span>${parseFloat(detail.subtotal).toFixed(2)}</span>
             </div>
             {detail.discountRate > 0 && (
               <div
@@ -4731,7 +4741,7 @@ function AdminOrders() {
               }}
             >
               <span>Total</span>
-              <span>${detail.totalAmount.toFixed(2)}</span>
+              <span>${parseFloat(detail.totalAmount).toFixed(2)}</span>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -5545,16 +5555,25 @@ function AdminAdmins() {
 
   async function handleAdd() {
     if (!form.name || !form.email || !form.password) {
-      dispatch({ type: "SET_TOAST", message: "Name, email and password are required" });
+      dispatch({
+        type: "SET_TOAST",
+        message: "Name, email and password are required",
+      });
       return;
     }
     try {
-      const newAdmin = await api("/api/admin/accounts", { method: "POST", body: form });
+      const newAdmin = await api("/api/admin/accounts", {
+        method: "POST",
+        body: form,
+      });
       setAdmins([...admins, { ...newAdmin, isActive: true }]);
       dispatch({ type: "SET_TOAST", message: "Admin account created!" });
       closeModal();
     } catch (err) {
-      dispatch({ type: "SET_TOAST", message: err.message || "Failed to create admin" });
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to create admin",
+      });
     }
   }
 
@@ -5564,7 +5583,11 @@ function AdminAdmins() {
       return;
     }
     try {
-      const body = { name: form.name, role: form.role, isActive: editTarget.isActive };
+      const body = {
+        name: form.name,
+        role: form.role,
+        isActive: editTarget.isActive,
+      };
       if (form.password) body.password = form.password;
       const updated = await api(`/api/admin/accounts/${editTarget.id}`, {
         method: "PUT",
@@ -5574,7 +5597,10 @@ function AdminAdmins() {
       dispatch({ type: "SET_TOAST", message: "Account updated!" });
       closeModal();
     } catch (err) {
-      dispatch({ type: "SET_TOAST", message: err.message || "Failed to update admin" });
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to update admin",
+      });
     }
   }
 
@@ -5590,18 +5616,27 @@ function AdminAdmins() {
         message: updated.isActive ? "Account activated" : "Account deactivated",
       });
     } catch (err) {
-      dispatch({ type: "SET_TOAST", message: err.message || "Failed to update account" });
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to update account",
+      });
     }
   }
 
   async function handleDelete(a) {
-    if (!window.confirm(`Permanently delete "${a.name}"? This cannot be undone.`)) return;
+    if (
+      !window.confirm(`Permanently delete "${a.name}"? This cannot be undone.`)
+    )
+      return;
     try {
       await api(`/api/admin/accounts/${a.id}`, { method: "DELETE" });
       setAdmins(admins.filter((x) => x.id !== a.id));
       dispatch({ type: "SET_TOAST", message: "Account deleted" });
     } catch (err) {
-      dispatch({ type: "SET_TOAST", message: err.message || "Failed to delete admin" });
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to delete admin",
+      });
     }
   }
 
@@ -5610,22 +5645,53 @@ function AdminAdmins() {
     return a.role === "SUPER_ADMIN" && superAdminCount <= 1;
   }
 
-  const tdStyle = { padding: "10px 10px", borderBottom: "0.5px solid var(--border)" };
-  const btnBase = { border: "none", borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: "4px 10px" };
+  const tdStyle = {
+    padding: "10px 10px",
+    borderBottom: "0.5px solid var(--border)",
+  };
+  const btnBase = {
+    border: "none",
+    borderRadius: 5,
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+    padding: "4px 10px",
+  };
 
   return (
     <div className="animate-fade">
       {/* Header row */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-        <Btn variant="admin" size="sm" onClick={openAdd}>+ Add Admin</Btn>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 14,
+        }}
+      >
+        <Btn variant="admin" size="sm" onClick={openAdd}>
+          + Add Admin
+        </Btn>
       </div>
 
       {/* Accounts table */}
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+      <table
+        style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}
+      >
         <thead>
           <tr>
             {["Name", "Email", "Role", "Status", "Actions"].map((h) => (
-              <th key={h} className="txt-th" style={{ padding: "7px 10px", textAlign: "left", background: "var(--bg2)", borderBottom: "1px solid var(--border)" }}>{h}</th>
+              <th
+                key={h}
+                className="txt-th"
+                style={{
+                  padding: "7px 10px",
+                  textAlign: "left",
+                  background: "var(--bg2)",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                {h}
+              </th>
             ))}
           </tr>
         </thead>
@@ -5637,7 +5703,16 @@ function AdminAdmins() {
                 <td style={{ ...tdStyle, fontWeight: 700 }}>{a.name}</td>
                 <td style={{ ...tdStyle, color: "var(--text2)" }}>{a.email}</td>
                 <td style={tdStyle}>
-                  <span style={{ background: roleColors[a.role], color: roleTextColors[a.role], fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: 30 }}>
+                  <span
+                    style={{
+                      background: roleColors[a.role],
+                      color: roleTextColors[a.role],
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "3px 9px",
+                      borderRadius: 30,
+                    }}
+                  >
                     {a.role.replace("_", " ")}
                   </span>
                 </td>
@@ -5645,7 +5720,13 @@ function AdminAdmins() {
                   {/* Active / Inactive toggle — disabled for last Super Admin */}
                   <button
                     onClick={() => !lastSuper && handleToggleActive(a)}
-                    title={lastSuper ? "Cannot deactivate the last Super Admin" : a.isActive ? "Click to deactivate" : "Click to activate"}
+                    title={
+                      lastSuper
+                        ? "Cannot deactivate the last Super Admin"
+                        : a.isActive
+                          ? "Click to deactivate"
+                          : "Click to activate"
+                    }
                     style={{
                       ...btnBase,
                       background: a.isActive ? "var(--mint)" : "var(--bg3)",
@@ -5662,7 +5743,11 @@ function AdminAdmins() {
                     {/* Edit */}
                     <button
                       onClick={() => openEdit(a)}
-                      style={{ ...btnBase, background: "var(--sky)", color: "var(--sky-dark)" }}
+                      style={{
+                        ...btnBase,
+                        background: "var(--sky)",
+                        color: "var(--sky-dark)",
+                      }}
                     >
                       Edit
                     </button>
@@ -5671,7 +5756,11 @@ function AdminAdmins() {
                     <button
                       onClick={() => !lastSuper && handleDelete(a)}
                       disabled={lastSuper}
-                      title={lastSuper ? "Cannot delete the last Super Admin account" : "Delete account"}
+                      title={
+                        lastSuper
+                          ? "Cannot delete the last Super Admin account"
+                          : "Delete account"
+                      }
                       style={{
                         ...btnBase,
                         background: lastSuper ? "var(--bg3)" : "var(--peach)",
@@ -5693,23 +5782,40 @@ function AdminAdmins() {
       {/* Super Admin note */}
       {superAdminCount <= 1 && (
         <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 10 }}>
-          ⚠ At least one Super Admin account must remain. Add another Super Admin before deleting or demoting this one.
+          ⚠ At least one Super Admin account must remain. Add another Super
+          Admin before deleting or demoting this one.
         </p>
       )}
 
       {/* Add / Edit modal */}
       {modalMode && (
         <Modal
-          title={modalMode === "add" ? "Add Admin Account" : `Edit — ${editTarget?.name}`}
+          title={
+            modalMode === "add"
+              ? "Add Admin Account"
+              : `Edit — ${editTarget?.name}`
+          }
           onClose={closeModal}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <Input label="Full Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
-            <Input label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} type="email" required
+            <Input
+              label="Full Name"
+              value={form.name}
+              onChange={(v) => setForm({ ...form, name: v })}
+              required
+            />
+            <Input
+              label="Email"
+              value={form.email}
+              onChange={(v) => setForm({ ...form, email: v })}
+              type="email"
+              required
               style={{ opacity: modalMode === "edit" ? 0.5 : 1 }}
             />
             {modalMode === "edit" && (
-              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: -6 }}>Email cannot be changed.</p>
+              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: -6 }}>
+                Email cannot be changed.
+              </p>
             )}
             <Input
               label="Role"
@@ -5717,12 +5823,16 @@ function AdminAdmins() {
               onChange={(v) => setForm({ ...form, role: v })}
               options={[
                 { value: "SUPER_ADMIN", label: "Super Admin" },
-                { value: "MANAGER",     label: "Manager"     },
-                { value: "STAFF",       label: "Staff"        },
+                { value: "MANAGER", label: "Manager" },
+                { value: "STAFF", label: "Staff" },
               ]}
             />
             <Input
-              label={modalMode === "edit" ? "New Password (leave blank to keep current)" : "Temporary Password"}
+              label={
+                modalMode === "edit"
+                  ? "New Password (leave blank to keep current)"
+                  : "Temporary Password"
+              }
               value={form.password}
               onChange={(v) => setForm({ ...form, password: v })}
               type="password"
@@ -5736,11 +5846,41 @@ function AdminAdmins() {
               >
                 {modalMode === "add" ? "Create Account" : "Save Changes"}
               </Btn>
-              <Btn variant="ghost" onClick={closeModal}>Cancel</Btn>
+              <Btn variant="ghost" onClick={closeModal}>
+                Cancel
+              </Btn>
             </div>
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+// ─── ACCESS DENIED FALLBACK ──────────────────────────────────
+function AccessDenied() {
+  return (
+    <div
+      style={{
+        textAlign: "center",
+        padding: "60px 20px",
+        color: "var(--text3)",
+      }}
+    >
+      <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+      <div
+        style={{
+          fontSize: 15,
+          fontWeight: 700,
+          color: "var(--text2)",
+          marginBottom: 6,
+        }}
+      >
+        Access Restricted
+      </div>
+      <div style={{ fontSize: 13 }}>
+        Your account role does not have permission to view this page.
+      </div>
     </div>
   );
 }
@@ -5751,14 +5891,68 @@ function AdminShell() {
   const { adminPage } = state;
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: "📊", section: null },
-    { id: "products", label: "Products", icon: "👕", section: "Products" },
-    { id: "inventory", label: "Inventory", icon: "📦", section: "Products" },
-    { id: "orders", label: "Orders", icon: "📋", section: "Orders" },
-    { id: "master", label: "Master Control", icon: "⚙️", section: "Settings" },
-    { id: "admins", label: "Admin Accounts", icon: "👤", section: "Settings" },
+  // The role stored on the logged-in admin user
+  const adminRole = state.currentUser?.role || "STAFF";
+  const isSuperAdmin = adminRole === "SUPER_ADMIN";
+  const isManager = adminRole === "MANAGER";
+  const canManage = isSuperAdmin || isManager;
+
+  // All nav items with the minimum role required — null = any admin
+  const ALL_NAV = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: "📊",
+      section: null,
+      roles: null,
+    },
+    {
+      id: "products",
+      label: "Products",
+      icon: "👕",
+      section: "Products",
+      roles: null,
+    },
+    {
+      id: "inventory",
+      label: "Inventory",
+      icon: "📦",
+      section: "Products",
+      roles: null,
+    },
+    {
+      id: "orders",
+      label: "Orders",
+      icon: "📋",
+      section: "Orders",
+      roles: null,
+    },
+    {
+      id: "parents",
+      label: "Parents",
+      icon: "👨‍👩‍👧",
+      section: "Orders",
+      roles: null,
+    },
+    {
+      id: "master",
+      label: "Master Control",
+      icon: "⚙️",
+      section: "Settings",
+      roles: ["SUPER_ADMIN", "MANAGER"],
+    },
+    {
+      id: "admins",
+      label: "Admin Accounts",
+      icon: "👤",
+      section: "Settings",
+      roles: ["SUPER_ADMIN"],
+    },
   ];
+
+  const navItems = ALL_NAV.filter(
+    (item) => !item.roles || item.roles.includes(adminRole),
+  );
   const sections = ["Products", "Orders", "Settings"];
   let lastSection = null;
 
@@ -5963,13 +6157,180 @@ function AdminShell() {
         {/* Page Content */}
         <div style={{ flex: 1, padding: 20, overflowY: "auto" }}>
           {adminPage === "dashboard" && <AdminDashboard />}
+          {adminPage === "parents" && <AdminParents />}
           {adminPage === "products" && <AdminProducts />}
           {adminPage === "inventory" && <AdminInventory />}
           {adminPage === "orders" && <AdminOrders />}
-          {adminPage === "master" && <AdminMasterControl />}
-          {adminPage === "admins" && <AdminAdmins />}
+          {adminPage === "master" &&
+            (canManage ? <AdminMasterControl /> : <AccessDenied />)}
+          {adminPage === "admins" &&
+            (isSuperAdmin ? <AdminAdmins /> : <AccessDenied />)}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminParents() {
+  const { dispatch } = useApp();
+  const [parents, setParents] = useState([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "100" });
+    if (search) params.set("search", search);
+    api(`/api/admin/parents?${params}`)
+      .then((data) => setParents(data.parents || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [search]);
+
+  async function handleToggleActive(p) {
+    try {
+      const updated = await api(`/api/admin/parents/${p.id}`, {
+        method: "PUT",
+        body: { isActive: !p.isActive },
+      });
+      setParents(
+        parents.map((x) =>
+          x.id === updated.id ? { ...x, isActive: updated.isActive } : x,
+        ),
+      );
+      dispatch({
+        type: "SET_TOAST",
+        message: updated.isActive
+          ? `${p.firstName} activated`
+          : `${p.firstName} deactivated`,
+      });
+    } catch (err) {
+      dispatch({
+        type: "SET_TOAST",
+        message: err.message || "Failed to update account",
+      });
+    }
+  }
+
+  const tdStyle = {
+    padding: "10px 10px",
+    borderBottom: "0.5px solid var(--border)",
+    fontSize: 13,
+  };
+
+  return (
+    <div className="animate-fade">
+      <div style={{ marginBottom: 14 }}>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, email or phone…"
+          style={{
+            width: "100%",
+            maxWidth: 340,
+            padding: "8px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)",
+            fontSize: 13,
+            outline: "none",
+          }}
+        />
+      </div>
+      {loading ? (
+        <div
+          style={{
+            textAlign: "center",
+            padding: 40,
+            color: "var(--text3)",
+            fontSize: 13,
+          }}
+        >
+          Loading…
+        </div>
+      ) : parents.length === 0 ? (
+        <EmptyState emoji="👨‍👩‍👧" message="No parent accounts found" />
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              {["Name", "Email", "Phone", "Orders", "Joined", "Status", ""].map(
+                (h) => (
+                  <th
+                    key={h}
+                    className="txt-th"
+                    style={{
+                      padding: "7px 10px",
+                      textAlign: "left",
+                      background: "var(--bg2)",
+                      borderBottom: "1px solid var(--border)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {parents.map((p) => (
+              <tr key={p.id}>
+                <td style={{ ...tdStyle, fontWeight: 700 }}>
+                  {p.firstName} {p.lastName}
+                </td>
+                <td style={{ ...tdStyle, color: "var(--text2)" }}>{p.email}</td>
+                <td style={tdStyle}>{p.phone || "—"}</td>
+                <td style={tdStyle}>
+                  <span
+                    style={{
+                      background: "var(--sky)",
+                      color: "var(--sky-dark)",
+                      fontWeight: 800,
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      borderRadius: 30,
+                    }}
+                  >
+                    {p._count?.orders ?? 0}
+                  </span>
+                </td>
+                <td style={{ ...tdStyle, color: "var(--text3)" }}>
+                  {new Date(p.createdAt).toLocaleDateString()}
+                </td>
+                <td style={tdStyle}>
+                  <span
+                    style={{
+                      color: p.isActive ? "var(--mint-dark)" : "var(--text3)",
+                      fontWeight: 700,
+                      fontSize: 11,
+                    }}
+                  >
+                    {p.isActive ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td style={tdStyle}>
+                  <button
+                    onClick={() => handleToggleActive(p)}
+                    style={{
+                      padding: "4px 10px",
+                      border: "none",
+                      borderRadius: 5,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      background: p.isActive ? "var(--peach)" : "var(--mint)",
+                      color: p.isActive
+                        ? "var(--peach-dark)"
+                        : "var(--mint-dark)",
+                    }}
+                  >
+                    {p.isActive ? "Deactivate" : "Activate"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
